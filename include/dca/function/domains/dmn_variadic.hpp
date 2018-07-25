@@ -45,8 +45,8 @@ public:
 
   // Returns the size allocated by this domain.
   // Includes all space for all subdomains.
-  static int& dmn_size() {
-    static int size = -1;
+  static ulong& dmn_size() {
+    static ulong size = -1;
     // std::cout << "Returning domain size " << size << std::endl << std::endl;
     return size;
   }
