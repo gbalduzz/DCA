@@ -67,6 +67,8 @@ private:
 
   void iterateOverLocalMeasurements(int walker_id, std::function<void(int, int, bool)>&& f);
 
+  void printDeviceFingerprints() const;
+
 private:
   using BaseClass::parameters_;
   using BaseClass::data_;
@@ -80,6 +82,8 @@ private:
 
   const int nr_walkers_;
   const int nr_accumulators_;
+  std::vector<std::size_t> walker_fingerprints_;
+  std::vector<std::size_t> accum_fingerprints_;
 
   ThreadTaskHandler thread_task_handler_;
 
@@ -99,6 +103,9 @@ StdThreadQmciClusterSolver<QmciSolver>::StdThreadQmciClusterSolver(Parameters& p
 
       nr_walkers_(parameters_.get_walkers()),
       nr_accumulators_(parameters_.get_accumulators()),
+
+      walker_fingerprints_(nr_walkers_, 0),
+      accum_fingerprints_(nr_accumulators_, 0),
 
       thread_task_handler_(nr_walkers_, nr_accumulators_,
                            parameters_ref.shared_walk_and_accumulation_thread()),
@@ -166,11 +173,7 @@ void StdThreadQmciClusterSolver<QmciSolver>::integrate() {
   dca::profiling::Duration duration(end_time, start_time);
   total_time_ = duration.sec + 1.e-6 * duration.usec;
 
-  if (concurrency_.id() == concurrency_.first()) {
-    std::cout << "Threaded on-node integration has ended: " << dca::util::print_time()
-              << "\n\nTotal number of measurements: " << parameters_.get_measurements()
-              << "\nQMC-time\t" << total_time_ << std::endl;
-  }
+  printDeviceFingerprints();
 
   QmciSolver::accumulator_.finalize();
 }
@@ -244,6 +247,7 @@ void StdThreadQmciClusterSolver<QmciSolver>::startWalker(int id) {
     walker.printSummary();
   }
 
+  walker_fingerprints_[walker_index] = walker.deviceFingerprint();
   Profiler::stop_threading(id);
 }
 
@@ -325,6 +329,7 @@ void StdThreadQmciClusterSolver<QmciSolver>::startAccumulator(int id) {
     accumulator_obj.sumTo(QmciSolver::accumulator_);
   }
 
+  accum_fingerprints_[thread_task_handler_.IDToAccumIndex(id)] = accumulator_obj.deviceFingerprint();
   Profiler::stop_threading(id);
 }
 
@@ -363,7 +368,26 @@ void StdThreadQmciClusterSolver<QmciSolver>::startWalkerAndAccumulator(int id) {
     accumulator_obj.sumTo(QmciSolver::accumulator_);
   }
 
+  walker_fingerprints_[id] = walker.deviceFingerprint();
+  accum_fingerprints_[id] = accumulator_obj.deviceFingerprint();
   Profiler::stop_threading(id);
+}
+
+template <class QmciSolver>
+void StdThreadQmciClusterSolver<QmciSolver>::printDeviceFingerprints() const {
+  if (QmciSolver::device == linalg::GPU && concurrency_.id() == concurrency_.first()) {
+    std::cout << "Threaded on-node integration has ended: " << dca::util::print_time()
+              << "\n\nTotal number of measurements: " << parameters_.get_measurements()
+              << "\nQMC-time\t" << total_time_ << "\n";
+    std::cout << "\nWalker fingerprints [MB]: \n";
+    for (const auto& x : walker_fingerprints_)
+      std::cout << x * 1e-6 << "\n";
+    std::cout << "Accumulator fingerprints [MB]: \n";
+    for (const auto& x : accum_fingerprints_)
+      std::cout << x * 1e-6 << "\n";
+    std::cout << "Static Accumulator fingerprint [MB]:\n"
+              << Accumulator::staticDeviceFingerprint() * 1e-6 << "\n\n";
+  }
 }
 
 }  // solver
