@@ -10,7 +10,6 @@
 // No-change test for CT-AUX.
 // Bilayer lattice with only intraband interaction.
 
-#define DCA_WITH_REDUCED_VERTEX_FUNCTION
 
 #include <complex>
 #include <iostream>
