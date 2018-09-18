@@ -99,7 +99,6 @@ int main(int argc, char** argv) {
   // Allows memory to be assigned.
   const int sign = 1;
   accumulator.accumulate(M, config, sign);
-  accumulator.initialize();
 
   Profiler::start();
   dca::profiling::WallTime start_time;
@@ -132,14 +131,12 @@ int main(int argc, char** argv) {
 
   dca::phys::solver::accumulator::TpAccumulator<Parameters, dca::linalg::GPU> gpu_accumulator(
       data.G0_k_w_cluster_excluded, parameters);
+  gpu_accumulator.resetAccumulation();
 
-  //  Uncomment to compute only the single particle function on the device.
-  //  gpu_accumulator.accumulateOnHost();
 
   // Allows memory to be assigned.
   gpu_accumulator.accumulate(M, config, sign);
   cudaStreamSynchronize(gpu_accumulator.get_stream());
-  gpu_accumulator.initialize();
 
   Profiler::start();
 
