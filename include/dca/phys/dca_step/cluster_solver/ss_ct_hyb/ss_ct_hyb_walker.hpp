@@ -140,6 +140,10 @@ public:
   // Writes a summary of the walker's Markov chain updates to stdout.
   void printSummary() const;
 
+  std::size_t deviceFingerprint() const {
+    return 0;
+  }
+
 private:
   void test_interpolation();
 
@@ -450,7 +454,7 @@ void SsCtHybWalker<device_t, parameters_type, MOMS_type>::swap_random_orbitals()
 
 template <dca::linalg::DeviceType device_t, class parameters_type, class MOMS_type>
 void SsCtHybWalker<device_t, parameters_type, MOMS_type>::updateShell(const int done,
-                                                                       const int total) {
+                                                                      const int total) {
   if (concurrency.id() == concurrency.first() && total > 10 && (done % (total / 10)) == 0) {
     std::cout.unsetf(std::ios_base::floatfield);
 

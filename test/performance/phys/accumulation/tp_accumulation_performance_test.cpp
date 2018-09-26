@@ -57,9 +57,13 @@ struct ConfigElement {
   double tau_;
 };
 
+using dca::linalg::CPU;
+using dca::linalg::GPU;
+
 using Configuration = std::array<std::vector<ConfigElement>, 2>;
-using MatrixPair = std::array<dca::linalg::Matrix<double, dca::linalg::CPU>, 2>;
-void prepareRandomConfig(Configuration& config, MatrixPair& M, int n);
+template<dca::linalg::DeviceType device>
+using MatrixPair = std::array<dca::linalg::Matrix<double, device>, 2>;
+void prepareRandomConfig(Configuration& config, MatrixPair<CPU>& M, int n);
 
 using Model =
     dca::phys::models::TightBindingModel<dca::phys::models::bilayer_lattice<dca::phys::domains::D4>>;
@@ -89,7 +93,7 @@ int main(int argc, char** argv) {
   Data data(parameters);
   data.initialize();
 
-  MatrixPair M;
+  MatrixPair<CPU> M;
   Configuration config;
   prepareRandomConfig(config, M, n);
 
@@ -132,12 +136,10 @@ int main(int argc, char** argv) {
 
   dca::phys::solver::accumulator::TpAccumulator<Parameters, dca::linalg::GPU> gpu_accumulator(
       data.G0_k_w_cluster_excluded, parameters);
+  MatrixPair<GPU> M_dev{M[0], M[1]};
 
-  //  Uncomment to compute only the single particle function on the device.
-  //  gpu_accumulator.accumulateOnHost();
-
-  // Allows memory to be assigned.
-  gpu_accumulator.accumulate(M, config, sign);
+  // Allow memory to be assigned.
+  gpu_accumulator.accumulate(M_dev, config, sign);
   cudaStreamSynchronize(gpu_accumulator.get_stream());
   gpu_accumulator.resetAccumulation(1);
 
@@ -146,7 +148,7 @@ int main(int argc, char** argv) {
   cudaProfilerStart();
   start_event.record(gpu_accumulator.get_stream());
   dca::profiling::WallTime host_start_time;
-  gpu_accumulator.accumulate(M, config, sign);
+  gpu_accumulator.accumulate(M_dev, config, sign);
   dca::profiling::WallTime host_end_time;
   stop_event.record(gpu_accumulator.get_stream());
   cudaProfilerStop();
@@ -161,7 +163,7 @@ int main(int argc, char** argv) {
 #endif  // DCA_HAVE_CUDA
 }
 
-void prepareRandomConfig(Configuration& config, MatrixPair& M, const int n) {
+void prepareRandomConfig(Configuration& config, MatrixPair<CPU>& M, const int n) {
   dca::math::random::StdRandomWrapper<std::ranlux48_base> rng(0, 1, 0);
 
   for (int s = 0; s < 2; ++s) {

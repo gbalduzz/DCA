@@ -127,6 +127,13 @@ public:
   template <typename Writer>
   void write(Writer& writer);
 
+  std::size_t deviceFingerprint() const {
+    return 0;
+  }
+  static std::size_t staticDeviceFingerprint() {
+    return 0;
+  }
+
 protected:
   using MC_accumulator_data::DCA_iteration;
   using MC_accumulator_data::number_of_measurements;
@@ -288,7 +295,6 @@ void SsCtHybAccumulator<device_t, parameters_type, Data>::sumTo(this_type& other
   other.number_of_measurements += number_of_measurements;
 
   other.get_visited_expansion_order_k() += visited_expansion_order_k;
-
 
   single_particle_accumulator_obj.sumTo(other.single_particle_accumulator_obj);
 }
