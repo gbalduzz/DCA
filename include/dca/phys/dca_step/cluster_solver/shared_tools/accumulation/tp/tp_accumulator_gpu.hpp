@@ -26,6 +26,7 @@
 #include "dca/math/function_transform/special_transforms/space_transform_2D_gpu.hpp"
 #include "dca/phys/dca_step/cluster_solver/shared_tools/accumulation/tp/kernels_interface.hpp"
 #include "dca/phys/dca_step/cluster_solver/shared_tools/accumulation/tp/ndft/cached_ndft_gpu.hpp"
+#include "dca/phys/dca_step/cluster_solver/shared_tools/accumulation/tp/vector_managed_fallback.hpp"
 #include "dca/util/call_once_per_loop.hpp"
 
 namespace dca {
@@ -146,7 +147,7 @@ private:
 
   using G0DevType = std::array<MatrixDev, 2>;
   static inline G0DevType& get_G0();
-  using G4DevType = linalg::Vector<Complex, linalg::GPU>;
+  using G4DevType = VectorManagedFallback<Complex>;
   static inline G4DevType& get_G4();
 };
 
@@ -205,7 +206,7 @@ void TpAccumulator<Parameters, linalg::GPU>::resetG4() {
   try {
     typename BaseClass::TpDomain tp_dmn;
     G4.resizeNoCopy(tp_dmn.get_size());
-    cudaMemsetAsync(G4.ptr(), 0, G4.size() * sizeof(Complex), streams_[0]);
+    G4.setToZeroAsync(streams_[0]);
   }
   catch (std::bad_alloc& err) {
     std::cerr << "Failed to allocate G4 on device.\n";
@@ -307,6 +308,9 @@ void TpAccumulator<Parameters, linalg::GPU>::updateG4() {
   const int nw_exchange = domains::FrequencyExchangeDomain::get_size();
   const int nk_exchange = domains::MomentumExchangeDomain::get_size();
 
+  //  TODO: set stream only if this thread gets exclusive access to G4.
+  //  get_G4().setStream(streams_[0]);
+
   switch (mode_) {
     case PARTICLE_HOLE_MAGNETIC:
       details::updateG4<Real, PARTICLE_HOLE_MAGNETIC>(
@@ -343,11 +347,9 @@ void TpAccumulator<Parameters, linalg::GPU>::finalize() {
     return;
 
   G4_ = std::make_unique<TpGreenFunction>("G4");
-  assert(G4_->size() == get_G4().size());
 
-  cudaMemcpyAsync(G4_->values(), get_G4().ptr(), G4_->size() * sizeof(Complex),
-                  cudaMemcpyDeviceToHost, streams_[0]);
-  synchronize();
+  get_G4().copyTo(*G4_);
+
   // TODO: release memory if needed by the rest of the DCA loop.
   // get_G4().clear();
 
