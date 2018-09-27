@@ -197,21 +197,16 @@ public:
   template <DeviceType rhs_device_name>
   void set(const Matrix<ScalarType, rhs_device_name>& rhs, int thread_id, int stream_id);
 
+  // Asynchronous assignment (copy with stream = getStream(thread_id, stream_id))
+  template <DeviceType rhs_device_name>
+  void setAsync(const Matrix<ScalarType, rhs_device_name>& rhs, int thread_id, int stream_id);
+
 #ifdef DCA_HAVE_CUDA
   // Asynchronous assignment.
   template <DeviceType rhs_device_name>
   void setAsync(const Matrix<ScalarType, rhs_device_name>& rhs, cudaStream_t stream);
 
-  // Asynchronous assignment (copy with stream = getStream(thread_id, stream_id))
-  template <DeviceType rhs_device_name>
-  void setAsync(const Matrix<ScalarType, rhs_device_name>& rhs, int thread_id, int stream_id);
-
   void setToZero(cudaStream_t stream);
-#else
-  // Synchronous assignment fallback for SetAsync.
-  template <DeviceType rhs_device_name>
-  void setAsync(const Matrix<ScalarType, rhs_device_name>& rhs, int thread_id, int stream_id);
-
 #endif  // DCA_HAVE_CUDA
 
   // Prints the values of the matrix elements.
@@ -435,27 +430,21 @@ void Matrix<ScalarType, device_name>::setAsync(const Matrix<ScalarType, rhs_devi
 }
 
 template <typename ScalarType, DeviceType device_name>
-template <DeviceType rhs_device_name>
-void Matrix<ScalarType, device_name>::setAsync(const Matrix<ScalarType, rhs_device_name>& rhs,
-                                               const int thread_id, const int stream_id) {
-  setAsync(rhs, util::getStream(thread_id, stream_id));
-}
-
-template <typename ScalarType, DeviceType device_name>
 void Matrix<ScalarType, device_name>::setToZero(cudaStream_t stream) {
   cudaMemsetAsync(data_, 0, leadingDimension() * nrCols() * sizeof(ScalarType), stream);
 }
-
-#else
+#endif  // DCA_HAVE_CUDA
 
 template <typename ScalarType, DeviceType device_name>
 template <DeviceType rhs_device_name>
 void Matrix<ScalarType, device_name>::setAsync(const Matrix<ScalarType, rhs_device_name>& rhs,
-                                               int /*thread_id*/, int /*stream_id*/) {
-  set(rhs);
-}
-
+                                               const int thread_id, const int stream_id) {
+#ifdef DCA_HAVE_CUDA
+  setAsync(rhs, util::getStream(thread_id, stream_id));
+#else
+  *this = rhs;
 #endif  // DCA_HAVE_CUDA
+}
 
 template <typename ScalarType, DeviceType device_name>
 void Matrix<ScalarType, device_name>::print() const {

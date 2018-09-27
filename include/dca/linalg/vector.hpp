@@ -62,6 +62,8 @@ public:
   template <DeviceType device_name2, class Allocator2>
   ThisType& operator=(const Vector<ScalarType, device_name2, Allocator2>& rhs);
 
+  ThisType& operator=(const std::vector<ScalarType>& rhs);
+
   template <DeviceType device_name2, class Allocator2>
   ThisType& operator=(Vector<ScalarType, device_name2, Allocator2>&& rhs);
 
@@ -90,15 +92,18 @@ public:
   // Asynchronous assignment (copy with stream = getStream(thread_id, stream_id))
   // + synchronization of stream.
   template <class Container>
-  void set(const Container& rhs, int thread_id, int stream_id);
+  void set(const Container& rhs, int thread_id, int stream_id = 0);
 
   // Synchronous copy. Container must define a data() and size() methods.
   // Precondition: rhs has the same size as this Vector.
   template <class Container>
   void copyTo(Container& rhs) const;
 
-#ifdef DCA_HAVE_CUDA
   // Asynchronous assignment.
+  template <class Container>
+  void setAsync(const Container& rhs, int thread_id, int stream_id = 0);
+
+#ifdef DCA_HAVE_CUDA
   template <class Container>
   void setAsync(const Container& rhs, cudaStream_t stream);
 
@@ -255,6 +260,18 @@ Vector<ScalarType, device_name, Allocator>& Vector<ScalarType, device_name, Allo
 }
 
 template <typename ScalarType, DeviceType device_name, class Allocator>
+Vector<ScalarType, device_name, Allocator>& Vector<ScalarType, device_name, Allocator>::operator=(
+    const std::vector<ScalarType>& rhs) {
+  resizeNoCopy(rhs.size());
+  if (device_name == CPU)
+    util::memoryCopyCpu(data_, rhs.data(), size_);
+  else
+    util::memoryCopy(data_, rhs.data(), size_);
+
+  return *this;
+}
+
+template <typename ScalarType, DeviceType device_name, class Allocator>
 template <DeviceType device_name2, class Allocator2>
 Vector<ScalarType, device_name, Allocator>& Vector<ScalarType, device_name, Allocator>::operator=(
     Vector<ScalarType, device_name2, Allocator2>&& rhs) {
@@ -295,6 +312,17 @@ void Vector<ScalarType, device_name, Allocator>::setToZeroAsync(cudaStream_t str
   cudaMemsetAsync(data_, 0, size_ * sizeof(ScalarType), stream);
 }
 #endif  // DCA_HAVE_CUDA
+
+template <typename ScalarType, DeviceType device_name, class Allocator>
+template <class Container>
+void Vector<ScalarType, device_name, Allocator>::setAsync(const Container& rhs, const int thread_id,
+                                                          const int stream_id) {
+#ifdef DCA_HAVE_CUDA
+  setAsync(rhs, util::getStream(thread_id, stream_id));
+#else
+  set(rhs, thread_id, stream_id);
+#endif  // DCA_HAVE_CUDA
+}
 
 template <typename ScalarType, DeviceType device_name, class Allocator>
 void Vector<ScalarType, device_name, Allocator>::resize(size_t new_size) {
