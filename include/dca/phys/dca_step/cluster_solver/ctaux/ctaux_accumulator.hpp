@@ -187,8 +187,9 @@ protected:
 
   std::array<std::vector<vertex_singleton_type>, 2> hs_configuration_;
 
-  std::array<dca::linalg::Matrix<double, device_t>, 2> M_;
-  std::array<dca::linalg::Matrix<double, linalg::CPU>, 2> M_host_;
+  using AccumType = typename Parameters::MC_measurement_scalar_type;
+  std::array<dca::linalg::Matrix<AccumType, device_t>, 2> M_;
+  std::array<dca::linalg::Matrix<AccumType, linalg::CPU>, 2> M_host_;
 
   func::function<double, func::dmn_0<domains::numerical_error_domain>> error;
   func::function<double, func::dmn_0<Feynman_expansion_order_domain>> visited_expansion_order_k;
@@ -456,14 +457,12 @@ void CtauxAccumulator<device_t, Parameters, Data>::accumulate_equal_time_quantit
       linalg::util::syncStream(thread_id, s);
   }
   else {
-    M_host_ = std::move(M_);
+    for (int s = 0; s < 2; ++s)
+      M_host_[s] = M_[s];
   }
 
   MC_two_particle_equal_time_accumulator_obj.compute_G_r_t(hs_configuration_[0], M_host_[0],
                                                            hs_configuration_[1], M_host_[1]);
-
-  if (device_t == linalg::CPU)
-    M_ = std::move(M_host_);
 
   MC_two_particle_equal_time_accumulator_obj.accumulate_G_r_t(current_sign);
 

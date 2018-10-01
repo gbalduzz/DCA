@@ -50,7 +50,7 @@ template <typename ScalarType>
 NfftHelperManager<ScalarType> HelperSelector<ScalarType>::value;
 
 template <typename ScalarType>
-__global__ void accumulateOnDeviceKernel(const double* M, const int ldm, const int sign,
+__global__ void accumulateOnDeviceKernel(const ScalarType* M, const int ldm, const int sign,
                                          ScalarType* out, ScalarType* out_sqr, int ldo,
                                          const ConfigElem* config_left,
                                          const ConfigElem* config_right, const ScalarType* times,
@@ -91,7 +91,7 @@ __global__ void accumulateOnDeviceKernel(const double* M, const int ldm, const i
 }
 
 template <typename ScalarType>
-void accumulateOnDevice(const double* M, const int ldm, const int sign, ScalarType* out,
+void accumulateOnDevice(const ScalarType* M, const int ldm, const int sign, ScalarType* out,
                         ScalarType* out_sqr, const int ldo, const ConfigElem* config_left,
                         const ConfigElem* config_right, const ScalarType* tau,
                         const ScalarType* cubic_coeff, const int size, cudaStream_t stream_) {
@@ -140,7 +140,7 @@ template void accumulateOnDevice<double>(const double* M, const int ldm, const i
                                          const ConfigElem* config_right, const double* tau,
                                          const double* cubic_coeff, const int size,
                                          cudaStream_t stream_);
-template void accumulateOnDevice<float>(const double* M, const int ldm, const int sign, float* out,
+template void accumulateOnDevice<float>(const float* M, const int ldm, const int sign, float* out,
                                         float* out_sqr, const int ldo, const ConfigElem* config_left,
                                         const ConfigElem* config_right, const float* tau,
                                         const float* cubic_coeff, const int size,

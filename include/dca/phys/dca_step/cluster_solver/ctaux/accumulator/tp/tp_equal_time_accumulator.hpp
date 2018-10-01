@@ -93,11 +93,11 @@ public:
     return dwave_pp_correlator;
   }
 
-  template <class configuration_type>
+  template <class configuration_type, typename RealInp>
   void compute_G_r_t(configuration_type& configuration_e_up,
-                     dca::linalg::Matrix<double, dca::linalg::CPU>& M_up,
+                     dca::linalg::Matrix<RealInp, dca::linalg::CPU>& M_up,
                      configuration_type& configuration_e_dn,
-                     dca::linalg::Matrix<double, dca::linalg::CPU>& M_dn);
+                     dca::linalg::Matrix<RealInp, dca::linalg::CPU>& M_dn);
 
   void accumulate_G_r_t(double sign);
 
@@ -588,10 +588,10 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type>::interpolate(
 }
 
 template <class parameters_type, class MOMS_type>
-template <class configuration_type>
+template <class configuration_type, typename RealInp>
 void TpEqualTimeAccumulator<parameters_type, MOMS_type>::compute_G_r_t(
-    configuration_type& configuration_e_up, dca::linalg::Matrix<double, dca::linalg::CPU>& M_up,
-    configuration_type& configuration_e_dn, dca::linalg::Matrix<double, dca::linalg::CPU>& M_dn) {
+    configuration_type& configuration_e_up, dca::linalg::Matrix<RealInp, dca::linalg::CPU>& M_up,
+    configuration_type& configuration_e_dn, dca::linalg::Matrix<RealInp, dca::linalg::CPU>& M_dn) {
   {
     int configuration_size = find_first_non_interacting_spin(configuration_e_dn);
 
