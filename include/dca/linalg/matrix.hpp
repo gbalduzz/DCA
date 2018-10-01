@@ -26,6 +26,7 @@
 #include "dca/linalg/device_type.hpp"
 #include "dca/linalg/util/copy.hpp"
 #include "dca/linalg/util/stream_functions.hpp"
+#include "dca/util/ignore.hpp"
 
 namespace dca {
 namespace linalg {
@@ -444,6 +445,7 @@ void Matrix<ScalarType, device_name>::setAsync(const Matrix<ScalarType, rhs_devi
 #ifdef DCA_HAVE_CUDA
   setAsync(rhs, util::getStream(thread_id, stream_id));
 #else
+  dca::util::ignoreUnused(thread_id, stream_id);
   *this = rhs;
 #endif  // DCA_HAVE_CUDA
 }
