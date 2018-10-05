@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "dca/io/buffer.hpp"
+#include "dca/io/util/create_directory.hpp"
 #include "dca/io/hdf5/hdf5_writer.hpp"
 #include "dca/linalg/util/handle_functions.hpp"
 #include "dca/parallel/stdthread/thread_pool/thread_pool.hpp"
@@ -418,6 +419,8 @@ void StdThreadQmciClusterSolver<QmciSolver>::writeConfigurations() const {
   try {
     const std::string out_name = parameters_.get_directory_config_write() + "/process_" +
                                  std::to_string(concurrency_.id()) + ".hdf5";
+    dca::io::util::createDirectory(out_name);
+
     io::HDF5Writer writer;
     writer.open_file(out_name);
     for (int id = 0; id < config_dump_.size(); ++id)
