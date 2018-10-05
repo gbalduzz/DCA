@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "dca/io/buffer.hpp"
 #include "dca/function/domains.hpp"
 #include "dca/function/function.hpp"
 #include "dca/linalg/device_type.hpp"
@@ -143,6 +144,12 @@ public:
   std::size_t deviceFingerprint() const {
     return 0;
   }
+
+  // TODO: implement.
+  io::Buffer dumpConfig() const {
+    return io::Buffer();
+  }
+  void readConfig(io::Buffer& /*buffer*/) {}
 
 private:
   void test_interpolation();
