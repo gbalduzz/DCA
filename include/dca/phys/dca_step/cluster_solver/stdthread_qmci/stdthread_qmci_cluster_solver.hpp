@@ -417,9 +417,9 @@ void StdThreadQmciClusterSolver<QmciSolver>::writeConfigurations() const {
     return;
 
   try {
+    dca::io::util::createDirectory(parameters_.get_directory_config_write());
     const std::string out_name = parameters_.get_directory_config_write() + "/process_" +
                                  std::to_string(concurrency_.id()) + ".hdf5";
-    dca::io::util::createDirectory(out_name);
 
     io::HDF5Writer writer;
     writer.open_file(out_name);
