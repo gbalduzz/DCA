@@ -285,7 +285,7 @@ void MPICollectiveSum::leaveOneOutAvg(func::function<Scalar, Domain>& f) const {
   const func::function<Scalar, Domain> f_local(f);
   sum(f_local, f);
 
-  const double scale = 1. / (MPIProcessorGrouping::get_size() - 1);
+  const Scalar scale = 1. / (MPIProcessorGrouping::get_size() - 1);
   for (int i = 0; i < f.size(); ++i)
     f(i) = scale * (f(i) - f_local(i));
 }
