@@ -18,6 +18,12 @@
 #include "dca/function/domains.hpp"
 #include "dca/function/function.hpp"
 #include "dca/math/function_transform/function_transform.hpp"
+
+#include "dca/function/util/difference.hpp"
+#include "dca/phys/dca_step/cluster_mapping/coarsegraining/coarsegraining_domain.hpp"
+#include "dca/phys/dca_step/cluster_mapping/coarsegraining/coarsegraining_routines.hpp"
+#include "dca/parallel/no_concurrency/no_concurrency.hpp"
+
 #include "dca/phys/domains/cluster/centered_cluster_domain.hpp"
 #include "dca/phys/domains/cluster/cluster_domain.hpp"
 #include "dca/phys/domains/cluster/cluster_domain_initializer.hpp"
@@ -49,6 +55,9 @@ protected:
                                                        dca::phys::domains::MOMENTUM_SPACE,
                                                        dca::phys::domains::BRILLOUIN_ZONE>;
   using KHostDmn = dca::func::dmn_0<KHostType>;
+
+  using QDmn = dca::func::dmn_0<
+      dca::phys::clustermapping::coarsegraining_domain<KClusterDmn, dca::phys::clustermapping::K>>;
 
   static void SetUpTestCase() {
     std::array<double, 4> basis{{1., 0., 0., 1.}};  // Lattice basis: [1, 0], [0, 1].
@@ -118,5 +127,55 @@ TEST_F(WannierInterpolationTest, ClusterToHost) {
                 3000 * std::numeric_limits<double>::epsilon());
     EXPECT_NEAR(f_k_cluster(cluster_ind).imag(), f_k_host(host_ind).imag(),
                 3000 * std::numeric_limits<double>::epsilon());
+  }
+}
+
+struct MockParameters {
+  int get_k_mesh_recursion() {
+    return 3;
+  }
+  int get_coarsegraining_periods() {
+    return 2;
+  }
+  int get_quadrature_rule() {
+    return 1;
+  }
+
+  constexpr static int lattice_dimension = 2;
+  using concurrency_type = dca::parallel::NoConcurrency;
+
+  concurrency_type& get_concurrency() {
+    return concurrency_;
+  }
+
+private:
+  concurrency_type concurrency_ = concurrency_type(0, nullptr);
+};
+
+template <class KDmn>
+void compute_function(dca::func::function<double, KDmn>& f) {
+  int index = 0;
+  for (const auto& k_val : KDmn::get_elements())
+    f(index++) = std::cos(k_val[0]) + std::sin(k_val[1]);  // Arbitrary function of k_val.
+}
+
+TEST_F(WannierInterpolationTest, HostToQ) {
+  MockParameters pars;
+  dca::phys::clustermapping::coarsegraining_routines<MockParameters, KClusterDmn> routines(pars);
+
+  dca::func::function<double, KHostDmn> f_k;
+  dca::func::function<double, QDmn> f_q;
+  dca::func::function<double, QDmn> f_q_direct;
+
+  compute_function(f_k);
+  for (int k_cluster = 0; k_cluster < KClusterDmn::dmn_size(); ++k_cluster) {
+    QDmn::parameter_type::set_elements(k_cluster);
+
+    routines.wannier_interpolation(k_cluster, f_k, f_q);
+
+    // Compare interpolation with direct computation.
+    compute_function(f_q_direct);
+    auto diff = dca::func::util::difference(f_q_direct, f_q);
+    EXPECT_GT(1e-5, diff.l2);
   }
 }

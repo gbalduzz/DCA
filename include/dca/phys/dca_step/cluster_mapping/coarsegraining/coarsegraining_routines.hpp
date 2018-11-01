@@ -57,7 +57,7 @@ public:
   using nu_nu = func::dmn_variadic<nu, nu>;
 
   using DCA_k_cluster_type =
-      domains::cluster_domain<double, parameters_type::lattice_type::DIMENSION, domains::CLUSTER,
+      domains::cluster_domain<double, parameters_type::lattice_dimension, domains::CLUSTER,
                               domains::MOMENTUM_SPACE, domains::BRILLOUIN_ZONE>;
   using k_DCA = func::dmn_0<DCA_k_cluster_type>;
 
@@ -77,17 +77,21 @@ public:
       func::function<std::complex<scalar_type>, func::dmn_variadic<nu, nu, k_dmn_t>>& f_k,
       func::function<std::complex<scalar_type>, func::dmn_variadic<nu, nu, q_dmn_t>>& f_q) const;
 
-protected:
-  void compute_tetrahedron_mesh(int k_mesh_refinement, int number_of_periods) const;
-
-  void compute_gaussian_mesh(int k_mesh_refinement, int gaussian_quadrature_rule,
-                             int number_of_periods) const;
+  template <typename scalar_type, typename k_dmn_t, typename q_dmn_t>
+  void wannier_interpolation(int K_ind, const func::function<scalar_type, k_dmn_t>& f_k,
+                             func::function<scalar_type, q_dmn_t>& f_q) const;
 
   template <typename scalar_type, typename k_dmn_t, typename q_dmn_t>
   void wannier_interpolation(
       int K_ind,
       const func::function<std::complex<scalar_type>, func::dmn_variadic<nu, nu, k_dmn_t>>& f_k,
       func::function<std::complex<scalar_type>, func::dmn_variadic<nu, nu, q_dmn_t>>& f_q) const;
+
+protected:
+  void compute_tetrahedron_mesh(int k_mesh_refinement, int number_of_periods) const;
+
+  void compute_gaussian_mesh(int k_mesh_refinement, int gaussian_quadrature_rule,
+                             int number_of_periods) const;
 
   template <typename scalar_type, typename tmp_scalar_type, typename q_dmn_t>
   void compute_I_q(
@@ -260,6 +264,38 @@ void coarsegraining_routines<parameters_type, K_dmn>::compute_gaussian_mesh(
     coarsegraining_domain<K_dmn, Q_MINUS_K>::get_weights() = quadrature_dmn::get_weights();
     coarsegraining_domain<K_dmn, Q_MINUS_K>::get_elements() = quadrature_dmn::get_elements();
   }
+}
+
+template <typename parameters_type, typename K_dmn>
+template <typename scalar_type, typename k_dmn_t, typename q_dmn_t>
+void coarsegraining_routines<parameters_type, K_dmn>::wannier_interpolation(
+    const int K_ind, const func::function<scalar_type, k_dmn_t>& f_k,
+    func::function<scalar_type, q_dmn_t>& f_q) const {
+  typedef interpolation_matrices<scalar_type, k_dmn_t, q_dmn_t> interpolation_matrices_type;
+
+  if (!interpolation_matrices_type::is_initialized())
+    interpolation_matrices_type::initialize(concurrency);
+
+  const dca::linalg::Matrix<scalar_type, dca::linalg::CPU>& T =
+      interpolation_matrices_type::get(K_ind);
+
+  scalar_type alpha(1.);
+  scalar_type beta(0.);
+
+  // Interpolate real, imaginary part and spin bands independently.
+  const scalar_type* A_ptr = f_k.values();
+  const scalar_type* B_ptr = &T(0, 0);
+  scalar_type* C_ptr = f_q.values();
+
+  int M = 1;
+  int K = k_dmn_t::dmn_size();
+  int N = q_dmn_t::dmn_size();
+
+  int LDA = 1;
+  int LDB = T.leadingDimension();
+  int LDC = 1;
+
+  dca::linalg::blas::gemm("N", "T", M, N, K, alpha, A_ptr, LDA, B_ptr, LDB, beta, C_ptr, LDC);
 }
 
 template <typename parameters_type, typename K_dmn>
