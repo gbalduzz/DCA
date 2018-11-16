@@ -122,6 +122,7 @@ elseif (DCA_PROFILER STREQUAL "PAPI")
   set(DCA_PROFILING_EVENT_INCLUDE "dca/profiling/events/papi_and_time_event.hpp")
   set(DCA_PROFILER_TYPE dca::profiling::CountingProfiler<Event>)
   set(DCA_PROFILER_INCLUDE "dca/profiling/counting_profiler.hpp")
+  link_libraries(papi)
 
 else()  # DCA_PROFILER = None
   # The NullProfiler doesn't have an event type.
