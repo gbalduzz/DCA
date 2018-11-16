@@ -230,7 +230,7 @@ double CachedNdft<ScalarType, RDmn, WDmn, WPosDmn, linalg::CPU, non_density_dens
   flop += 4 * T_l_[0].size().first * T_l_[0].size().second * M_ij_.size().second;
 
   dca::linalg::matrixop::multiply('N', 'C', T_l_times_M_ij_, T_r_, T_l_times_M_ij_times_T_r_, work_);
-  flop += 4. * T_l_times_M_ij_[0].size().first * T_l_times_M_ij_[0].size().second *
+  flop += 6. * T_l_times_M_ij_[0].size().first * T_l_times_M_ij_[0].size().second *
           T_l_times_M_ij_times_T_r_[0].size().second;
 
   return 1e-9 * flop;

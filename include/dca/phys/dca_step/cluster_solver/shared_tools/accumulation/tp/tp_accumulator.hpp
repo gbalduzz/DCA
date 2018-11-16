@@ -234,8 +234,8 @@ double TpAccumulator<Parameters, linalg::CPU>::computeM(
   }
 
   Profiler prf_b("Space FT", "tp-accumulation", __LINE__, thread_id_);
-  // TODO: add the gflops here.
   math::transform::SpaceTransform2D<RDmn, KDmn, Real>::execute(M_r_r_w_w, G_);
+  gflops += 1e-9 * 32 * std::pow(KDmn::dmn_size(), 3) * std::pow(n_bands_ * n_pos_frqs_, 2);
 
   return gflops;
 }
@@ -256,8 +256,7 @@ double TpAccumulator<Parameters, linalg::CPU>::computeG() {
                 computeGMultiband(s, k1, k2, w1, w2);
             }
   //  INTERNAL: the additional flops for w1==w2 are ignored.
-  const Real flops = 8 * std::pow(n_bands_, 3) * WTpExtPosDmn::dmn_size() * WTpExtDmn::dmn_size() *
-                     std::pow(KDmn::dmn_size(), 2) * 2;
+  const Real flops = 32 * std::pow(n_bands_, 3) * std::pow(KDmn::dmn_size() * n_pos_frqs_, 2);
   return 1e-9 * flops;
 }
 

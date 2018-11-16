@@ -75,6 +75,7 @@ void SpaceTransform2D<RDmn, KDmn, Real>::execute(
     func::function<Complex, func::dmn_variadic<RDmn, RDmn, BDmn, BDmn, SDmn, W1Dmn, W2Dmn>>& f_input,
     func::function<Complex, func::dmn_variadic<BDmn, BDmn, SDmn, KDmn, KDmn, W1Dmn, W2Dmn>>& f_output) {
   assert(SDmn::dmn_size() == 2);
+
   const int nc = RDmn::dmn_size();
   linalg::Matrix<Complex, linalg::CPU> tmp(nc);
   const Complex norm = Complex(1. / nc);
