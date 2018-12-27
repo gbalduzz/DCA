@@ -29,18 +29,26 @@ namespace util {
 template <typename T>
 class ManagedAllocator : public std::allocator<T> {
 public:
+  ManagedAllocator() {
+     cudaGetDevice(&device_);
+  }
+
   T* allocate(std::size_t n) {
     if (n == 0)
       return nullptr;
 
-    T* ptr;
-    cudaError_t ret = cudaMallocManaged((void**)&ptr, n * sizeof(T));
+    cudaError_t ret = cudaMallocManaged((void**)&ptr_, n * sizeof(T));
     if (ret != cudaSuccess) {
       printErrorMessage(ret, __FUNCTION__, __FILE__, __LINE__,
                         "\t Managed size requested : " + std::to_string(n * sizeof(T)));
       throw(std::bad_alloc());
     }
-    return ptr;
+
+    if (stream_) {
+      cudaStreamAttachMemAsync(stream_, ptr_);
+      cudaMemPrefetchAsync(ptr_, n * sizeof(T), device_, stream_);
+    }
+    return ptr_;
   }
 
   void deallocate(T*& ptr, std::size_t /*n*/ = 0) noexcept {
@@ -49,8 +57,19 @@ public:
       printErrorMessage(ret, __FUNCTION__, __FILE__, __LINE__);
       std::terminate();
     }
-    ptr = nullptr;
+    ptr_ = ptr = nullptr;
   }
+
+  void setStream(cudaStream_t stream) {
+    stream_ = stream;
+    if (ptr_)
+      cudaStreamAttachMemAsync(stream, ptr_);
+  }
+
+private:
+  T* ptr_ = nullptr;
+  cudaStream_t stream_ = nullptr;
+  int device_;
 };
 
 }  // util

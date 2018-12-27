@@ -161,7 +161,8 @@ private:
   using BaseClass::n_pos_frqs_;
 
   using MatrixDev = linalg::Matrix<Complex, linalg::GPU>;
-  using RMatrix = linalg::ReshapableMatrix<Complex, linalg::GPU>;
+  using RMatrix =
+      linalg::ReshapableMatrix<Complex, linalg::GPU, linalg::util::ManagedAllocator<Complex>>;
   using MatrixHost = linalg::Matrix<Complex, linalg::CPU>;
 
   std::array<linalg::util::MagmaQueue, 2> queues_;
@@ -198,11 +199,9 @@ TpAccumulator<Parameters, linalg::GPU>::TpAccumulator(
   initializeG4Helpers();
 
   // Create shared workspaces.
-  workspaces_.resize(n_ndft_streams_);
-  for (auto& work : workspaces_)
-    work = std::make_shared<RMatrix>();
-
   for (int i = 0; i < n_ndft_streams_; ++i) {
+    workspaces_.emplace_back(std::make_shared<RMatrix>());
+    workspaces_.back()->setStream(streams_[i]);
     ndft_objs_[i].setWorkspace(workspaces_[i]);
     space_trsf_objs_[i].setWorkspace(workspaces_[i]);
   }

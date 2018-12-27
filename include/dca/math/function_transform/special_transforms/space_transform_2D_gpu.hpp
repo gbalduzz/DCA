@@ -37,7 +37,8 @@ class SpaceTransform2DGpu : private SpaceTransform2D<RDmn, KDmn, Real> {
 private:
   using Complex = std::complex<Real>;
   using MatrixDev = linalg::Matrix<Complex, linalg::GPU>;
-  using RMatrix = linalg::ReshapableMatrix<Complex, linalg::GPU>;
+  using RMatrix =
+      linalg::ReshapableMatrix<Complex, linalg::GPU, linalg::util::ManagedAllocator<Complex>>;
 
 public:
   // Constructor
@@ -63,8 +64,8 @@ public:
   std::size_t deviceFingerprint() const {
     std::size_t res(0);
 
-      if (workspace_.unique())
-        res += workspace_->deviceFingerprint();
+    if (workspace_.unique())
+      res += workspace_->deviceFingerprint();
     return res;
   }
 

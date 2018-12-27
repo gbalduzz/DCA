@@ -48,7 +48,7 @@ private:
 
   using Complex = std::complex<Real>;
   using Matrix = linalg::Matrix<Complex, dca::linalg::GPU>;
-  using RMatrix = linalg::ReshapableMatrix<Complex, dca::linalg::GPU>;
+  using RMatrix = linalg::ReshapableMatrix<Complex, dca::linalg::GPU, linalg::util::ManagedAllocator<Complex>>;
   using MatrixHost = linalg::Matrix<Complex, dca::linalg::CPU>;
 
 public:
