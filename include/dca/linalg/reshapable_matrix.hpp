@@ -32,7 +32,7 @@ namespace linalg {
 
 template <typename ScalarType, DeviceType device_name,
           class Allocator = util::DefaultAllocator<ScalarType, device_name>>
-class ReshapableMatrix {
+class ReshapableMatrix : public Allocator {
 public:
   using ThisType = ReshapableMatrix<ScalarType, device_name, Allocator>;
   using ValueType = ScalarType;
@@ -49,8 +49,8 @@ public:
 
   // Contructs a matrix with name name, size rhs.size() and a copy of the elements of rhs, where rhs
   // elements are stored on a different device.
-  template <DeviceType rhs_device_name>
-  ReshapableMatrix(const ReshapableMatrix<ScalarType, rhs_device_name>& rhs);
+  template <DeviceType rhs_device_name, class RhsAllocator>
+  ReshapableMatrix(const ReshapableMatrix<ScalarType, rhs_device_name, RhsAllocator>& rhs);
 
   ~ReshapableMatrix();
 
@@ -159,14 +159,6 @@ public:
 
   void setToZero(cudaStream_t stream);
 
-  // Tie this matrix to a specific stream.
-  template <class Alloc = Allocator,
-            class = std::enable_if_t<
-                std::is_same<decltype(&Alloc::setStream), void (Alloc::*)(cudaStream_t)>::value>>
-  void setStream(cudaStream_t stream) {
-    allocator_.setStream(stream);
-  }
-
 #else
   // Synchronous assignment fallback for SetAsync.
   template <DeviceType rhs_device_name>
@@ -188,9 +180,6 @@ private:
   std::size_t capacity_;
 
   ValueType* data_ = nullptr;
-
-  Allocator allocator_;
-
   template <class ScalarType2, DeviceType device_name2, class Allocator2>
   friend class dca::linalg::ReshapableMatrix;
 };
@@ -205,7 +194,7 @@ ReshapableMatrix<ScalarType, device_name, Allocator>::ReshapableMatrix(std::pair
   assert(size_.first >= 0 && size_.second >= 0);
   assert(capacity_ >= nrElements(size_));
 
-  data_ = allocator_.allocate(capacity_);
+  data_ = Allocator::allocate(capacity_);
 }
 
 template <typename ScalarType, DeviceType device_name, class Allocator>
@@ -224,17 +213,17 @@ ReshapableMatrix<ScalarType, device_name, Allocator>::ReshapableMatrix(
 }
 
 template <typename ScalarType, DeviceType device_name, class Allocator>
-template <DeviceType rhs_device_name>
+template <DeviceType rhs_device_name, class RhsAllocator>
 ReshapableMatrix<ScalarType, device_name, Allocator>::ReshapableMatrix(
-    const ReshapableMatrix<ScalarType, rhs_device_name>& rhs)
+    const ReshapableMatrix<ScalarType, rhs_device_name, RhsAllocator>& rhs)
     : size_(rhs.size_), capacity_(rhs.capacity_) {
-  data_ = allocator_.allocate(capacity_);
+  data_ = Allocator::allocate(capacity_);
   util::memoryCopy(data_, leadingDimension(), rhs.data_, rhs.leadingDimension(), size_);
 }
 
 template <typename ScalarType, DeviceType device_name, class Allocator>
 ReshapableMatrix<ScalarType, device_name, Allocator>::~ReshapableMatrix() {
-  allocator_.deallocate(data_);
+  Allocator::deallocate(data_);
 }
 
 template <typename ScalarType, DeviceType device_name, class Allocator>
@@ -272,9 +261,9 @@ bool ReshapableMatrix<ScalarType, device_name, Allocator>::resizeNoCopy(
 template <typename ScalarType, DeviceType device_name, class Allocator>
 bool ReshapableMatrix<ScalarType, device_name, Allocator>::reserveNoCopy(std::size_t new_size) {
   if (new_size > capacity_) {
-    allocator_.deallocate(data_);
+    Allocator::deallocate(data_);
     capacity_ = nextCapacity(new_size);
-    data_ = allocator_.allocate(capacity_);
+    data_ = Allocator::allocate(capacity_);
     return true;
   }
   return false;
@@ -286,11 +275,12 @@ void ReshapableMatrix<ScalarType, device_name, Allocator>::swap(
   std::swap(size_, other.size_);
   std::swap(capacity_, other.capacity_);
   std::swap(data_, other.data_);
+  std::swap(static_cast<Allocator&>(*this), static_cast<Allocator&>(other));
 }
 
 template <typename ScalarType, DeviceType device_name, class Allocator>
 void ReshapableMatrix<ScalarType, device_name, Allocator>::clear() {
-  allocator_.deallocate(data_);
+  Allocator::deallocate(data_);
   size_ = std::make_pair(0, 0);
   capacity_ = 0;
 }

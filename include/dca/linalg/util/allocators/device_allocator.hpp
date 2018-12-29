@@ -29,6 +29,8 @@ namespace util {
 template <typename T>
 class DeviceAllocator : public std::allocator<T> {
 public:
+  void setStream(cudaStream_t /*stream*/) {}
+
   T* allocate(std::size_t n) {
     if (n == 0)
       return nullptr;

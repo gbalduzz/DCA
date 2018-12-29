@@ -22,6 +22,7 @@
 #include <array>
 #include <memory>
 
+#include "dca/config/accumulation_options.hpp"
 #include "dca/linalg/reshapable_matrix.hpp"
 #include "dca/linalg/util/magma_batched_gemm.hpp"
 #include "dca/math/function_transform/special_transforms/kernels_interface.hpp"
@@ -37,8 +38,8 @@ class SpaceTransform2DGpu : private SpaceTransform2D<RDmn, KDmn, Real> {
 private:
   using Complex = std::complex<Real>;
   using MatrixDev = linalg::Matrix<Complex, linalg::GPU>;
-  using RMatrix =
-      linalg::ReshapableMatrix<Complex, linalg::GPU, linalg::util::ManagedAllocator<Complex>>;
+  using RMatrix = linalg::ReshapableMatrix<Complex, linalg::GPU,
+                                           config::AccumulationOptions::AccumAllocatorType<Complex>>;
 
 public:
   // Constructor

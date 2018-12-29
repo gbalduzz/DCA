@@ -23,6 +23,7 @@
 #include <complex>
 #include <memory>
 
+#include "dca/config/accumulation_options.hpp"
 #include "dca/linalg/lapack/magma.hpp"
 #include "dca/linalg/matrix.hpp"
 #include "dca/linalg/reshapable_matrix.hpp"
@@ -48,7 +49,8 @@ private:
 
   using Complex = std::complex<Real>;
   using Matrix = linalg::Matrix<Complex, dca::linalg::GPU>;
-  using RMatrix = linalg::ReshapableMatrix<Complex, dca::linalg::GPU, linalg::util::ManagedAllocator<Complex>>;
+  using RMatrix = linalg::ReshapableMatrix<Complex, dca::linalg::GPU,
+                                           config::AccumulationOptions::AccumAllocatorType<Complex>>;
   using MatrixHost = linalg::Matrix<Complex, dca::linalg::CPU>;
 
 public:

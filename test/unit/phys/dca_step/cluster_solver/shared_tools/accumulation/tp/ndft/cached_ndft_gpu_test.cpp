@@ -28,6 +28,13 @@ constexpr int n_frqs = 7;
 using CachedNdftGpuTest =
     dca::testing::SingleSectorAccumulationTest<double, n_bands, n_sites, n_frqs>;
 
+using Complex = std::complex<double>;
+// Output type.
+template <dca::linalg::DeviceType device>
+using RMatrix =
+    dca::linalg::ReshapableMatrix<Complex, device,
+                                  dca::config::AccumulationOptions::AccumAllocatorType<Complex>>;
+
 double computeWithFastNDFT(const CachedNdftGpuTest::Configuration& config,
                            const CachedNdftGpuTest::Matrix& M, CachedNdftGpuTest::F_w_w& f_w);
 
@@ -61,14 +68,14 @@ double computeWithFastNDFT(const CachedNdftGpuTest::Configuration& config,
       nft_obj(queue);
   EXPECT_EQ(magma_queue_get_cuda_stream(queue), nft_obj.get_stream());
 
-  dca::linalg::ReshapableMatrix<std::complex<double>, dca::linalg::GPU> result_device(64);
+  RMatrix<dca::linalg::GPU> result_device(64);
 
   dca::profiling::WallTime start_time;
   nft_obj.execute(config, M, result_device);
   cudaStreamSynchronize(nft_obj.get_stream());
   dca::profiling::WallTime end_time;
 
-  dca::linalg::ReshapableMatrix<std::complex<double>, dca::linalg::CPU> result_host(result_device);
+  RMatrix<dca::linalg::CPU> result_host(result_device);
 
   // Rearrange the output from a function of (r1, b1, w1, r2, b2, w2) to a function of (b1, b2, r1,
   // r2, w1, w2).

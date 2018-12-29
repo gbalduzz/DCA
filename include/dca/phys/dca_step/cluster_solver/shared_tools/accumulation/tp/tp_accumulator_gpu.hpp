@@ -30,7 +30,6 @@
 #include "dca/phys/dca_step/cluster_solver/shared_tools/accumulation/tp/g4_helper.cuh"
 #include "dca/phys/dca_step/cluster_solver/shared_tools/accumulation/tp/kernels_interface.hpp"
 #include "dca/phys/dca_step/cluster_solver/shared_tools/accumulation/tp/ndft/cached_ndft_gpu.hpp"
-#include "dca/phys/dca_step/cluster_solver/shared_tools/accumulation/tp/vector_managed_fallback.hpp"
 
 namespace dca {
 namespace phys {
@@ -161,8 +160,8 @@ private:
   using BaseClass::n_pos_frqs_;
 
   using MatrixDev = linalg::Matrix<Complex, linalg::GPU>;
-  using RMatrix =
-      linalg::ReshapableMatrix<Complex, linalg::GPU, linalg::util::ManagedAllocator<Complex>>;
+  using RMatrix = linalg::ReshapableMatrix<Complex, linalg::GPU,
+                                           config::AccumulationOptions::AccumAllocatorType<Complex>>;
   using MatrixHost = linalg::Matrix<Complex, linalg::CPU>;
 
   std::array<linalg::util::MagmaQueue, 2> queues_;
@@ -183,7 +182,7 @@ private:
 
   using G0DevType = std::array<MatrixDev, 2>;
   static inline G0DevType& get_G0();
-  using G4DevType = VectorManagedFallback<Complex>;
+  using G4DevType = linalg::Vector<Complex, linalg::GPU, linalg::util::ManagedAllocator<Complex>>;
   static inline G4DevType& get_G4();
 };
 
@@ -205,6 +204,10 @@ TpAccumulator<Parameters, linalg::GPU>::TpAccumulator(
     ndft_objs_[i].setWorkspace(workspaces_[i]);
     space_trsf_objs_[i].setWorkspace(workspaces_[i]);
   }
+
+  // If unique owner of G4, set the stream.
+  if (pars.get_accumulators() == 1)
+    get_G4().setStream(streams_[0]);
 }
 
 template <class Parameters>

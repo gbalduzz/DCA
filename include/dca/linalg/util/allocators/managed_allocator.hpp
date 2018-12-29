@@ -29,15 +29,26 @@ namespace util {
 template <typename T>
 class ManagedAllocator : public std::allocator<T> {
 public:
+  void setStream(cudaStream_t stream) {
+    stream_ = stream;
+  }
+
+protected:
   ManagedAllocator() {
-     cudaGetDevice(&device_);
+    cudaGetDevice(&prefetch_device_);
+    cudaDeviceProp properties;
+    cudaGetDeviceProperties(&properties, prefetch_device_);
+    if (!properties.pageableMemoryAccess)  // No prefetch possible.
+      prefetch_device_ = -1;
   }
 
   T* allocate(std::size_t n) {
     if (n == 0)
       return nullptr;
 
-    cudaError_t ret = cudaMallocManaged((void**)&ptr_, n * sizeof(T));
+    T* ptr = nullptr;
+    cudaError_t ret = cudaMallocManaged((void**)&ptr, n * sizeof(T));
+
     if (ret != cudaSuccess) {
       printErrorMessage(ret, __FUNCTION__, __FILE__, __LINE__,
                         "\t Managed size requested : " + std::to_string(n * sizeof(T)));
@@ -45,10 +56,11 @@ public:
     }
 
     if (stream_) {
-      cudaStreamAttachMemAsync(stream_, ptr_);
-      cudaMemPrefetchAsync(ptr_, n * sizeof(T), device_, stream_);
+      cudaStreamAttachMemAsync(stream_, ptr, n * sizeof(T));
+      if (prefetch_device_ >= 0)
+        cudaMemPrefetchAsync(ptr, n * sizeof(T), prefetch_device_, stream_);
     }
-    return ptr_;
+    return ptr;
   }
 
   void deallocate(T*& ptr, std::size_t /*n*/ = 0) noexcept {
@@ -57,19 +69,12 @@ public:
       printErrorMessage(ret, __FUNCTION__, __FILE__, __LINE__);
       std::terminate();
     }
-    ptr_ = ptr = nullptr;
-  }
-
-  void setStream(cudaStream_t stream) {
-    stream_ = stream;
-    if (ptr_)
-      cudaStreamAttachMemAsync(stream, ptr_);
+    ptr = nullptr;
   }
 
 private:
-  T* ptr_ = nullptr;
+  int prefetch_device_;
   cudaStream_t stream_ = nullptr;
-  int device_;
 };
 
 }  // util

@@ -228,7 +228,6 @@ endif()
 # Single precision measurements
 # TODO: change to ON by default after merging and testing the two particle accumulator.
 option(DCA_WITH_SINGLE_PRECISION_MEASUREMENTS "Measure in single precision." OFF)
-mark_as_advanced(DCA_WITH_SINGLE_PRECISION_MEASUREMENTS)
 
 if (DCA_WITH_SINGLE_PRECISION_MEASUREMENTS)
   dca_add_config_define(DCA_WITH_SINGLE_PRECISION_MEASUREMENTS)
@@ -263,6 +262,13 @@ if (DCA_WITH_MEMORY_SAVINGS)
   set(MEMORY_SAVINGS true)
 else()
   set(MEMORY_SAVINGS false)
+endif()
+
+option(DCA_WITH_MANAGED_MEMORY "Use managed memory for the two particle accumulation." OFF)
+if (DCA_WITH_MANAGED_MEMORY)
+  set(ACCUM_ALLOCATOR_TYPE linalg::util::ManagedAllocator)
+else()
+  set(ACCUM_ALLOCATOR_TYPE linalg::util::DeviceAllocator)
 endif()
 
 if (DCA_WITH_SINGLE_PRECISION_MEASUREMENTS)
