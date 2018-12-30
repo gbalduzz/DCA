@@ -55,14 +55,21 @@ protected:
       throw(std::bad_alloc());
     }
 
-    if (stream_) {
-      cudaStreamAttachMemAsync(stream_, ptr, n * sizeof(T));
-      if (prefetch_device_ >= 0)
-        cudaMemPrefetchAsync(ptr, n * sizeof(T), prefetch_device_, stream_);
+    auto check = [](const cudaError err) {
+      if (err) {
+        printErrorMessage(err, __FUNCTION__, __FILE__, __LINE__,
+                          "\t Managed memory prefetch failure.");
+        throw(std::bad_alloc());
+      }
+    };
+    
+    if (stream_ && prefetch_device_ >= 0) {
+      check(cudaStreamAttachMemAsync(stream_, ptr, n * sizeof(T)));
+      check(cudaMemPrefetchAsync(ptr, n * sizeof(T), prefetch_device_, stream_));
     }
     return ptr;
   }
-
+  
   void deallocate(T*& ptr, std::size_t /*n*/ = 0) noexcept {
     cudaError_t ret = cudaFree(ptr);
     if (ret != cudaSuccess) {
