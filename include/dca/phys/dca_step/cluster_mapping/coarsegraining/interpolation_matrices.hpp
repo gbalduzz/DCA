@@ -130,7 +130,7 @@ void interpolation_matrices<scalar_type, k_dmn, func::dmn_0<coarsegraining_domai
     concurrency_type& concurrency) {
   assert(NAME == K or NAME == TETRAHEDRON_K);
   if (concurrency.id() == 0)
-    std::cout << "Compute phi_r\t" << dca::util::print_time() << std::endl;
+    std::cout << "\nInitialize interpolation matrices\t" << dca::util::print_time() << std::endl;
   Profiler profiler(__FUNCTION__, "Interpolation matrices", __LINE__);
 
   static std::once_flag flag;
