@@ -156,7 +156,7 @@ void CoarsegrainingSp<Parameters>::compute_G_K_w(const SigmaType& S_K_w, Cluster
   const int n_threads = parameters_.get_coarsegraining_threads();
   Threading().execute(n_threads, [&](int id, int n_threads) {
     const auto bounds = parallel::util::getBounds(id, n_threads, external_bounds);
-      constexpr int n_bands = Parameters::bands;
+    constexpr int n_bands = Parameters::bands;
 
     linalg::Matrix<Complex, linalg::CPU> G_inv("G_inv", n_bands);
     linalg::Vector<int, linalg::CPU> ipiv;
@@ -277,6 +277,7 @@ void CoarsegrainingSp<Parameters>::updateSigmaInterpolated(const LatticeFreqFunc
 template <typename Parameters>
 template <typename RDmn>
 void CoarsegrainingSp<Parameters>::compute_phi_r(func::function<ScalarType, RDmn>& phi_r) const {
+  Profiler profiler(__FUNCTION__, "Coarsegraining", __LINE__);
   using KCluster = typename KClusterDmn::parameter_type;
   math::geometry::tetrahedron_mesh<KCluster> mesh(parameters_.get_k_mesh_recursion());
 
@@ -313,8 +314,8 @@ void CoarsegrainingSp<Parameters>::compute_phi_r(func::function<ScalarType, RDmn
   phi_r /= tot_weight;
 }
 
-}  // clustermapping
-}  // phys
-}  // dca
+}  // namespace clustermapping
+}  // namespace phys
+}  // namespace dca
 
 #endif  // DCA_PHYS_DCA_STEP_CLUSTER_MAPPING_COARSEGRAINING_COARSEGRAINING_SP_HPP

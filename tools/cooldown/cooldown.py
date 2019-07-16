@@ -33,13 +33,13 @@ iters_last = 10  # last/lowest temperature
 iters = 5     # other temperatures
 
 # Inverse temperatures for cooldown
-betas = [1, 2, 5, 10, 20, 40, 50]
+betas = [50]
 # Starting temperature for computing two-particle quantities and running the analysis.
-beta_analysis = 50
+beta_analysis = 100
 
 #Measurements
 measurements_per_node = False
-measurements = 1000000
+measurements = 100
 
 ################################################################################
 ################################## UNTIL HERE ##################################

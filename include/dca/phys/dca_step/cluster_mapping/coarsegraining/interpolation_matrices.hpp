@@ -128,6 +128,7 @@ template <typename concurrency_type>
 void interpolation_matrices<scalar_type, k_dmn, func::dmn_0<coarsegraining_domain<K_dmn, NAME>>>::initialize(
     concurrency_type& concurrency) {
   assert(NAME == K or NAME == TETRAHEDRON_K);
+  Profiler profiler(__FUNCTION__, "Interpolation matrices", __LINE__);
 
   static std::once_flag flag;
 
@@ -235,8 +236,8 @@ void interpolation_matrices<scalar_type, k_dmn, func::dmn_0<coarsegraining_domai
   x = std::real(y);
 }
 
-}  // clustermapping
-}  // phys
-}  // dca
+}  // namespace clustermapping
+}  // namespace phys
+}  // namespace dca
 
 #endif  // DCA_PHYS_DCA_STEP_CLUSTER_MAPPING_COARSEGRAINING_INTERPOLATION_MATRICES_HPP
