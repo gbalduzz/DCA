@@ -277,7 +277,11 @@ void CoarsegrainingSp<Parameters>::updateSigmaInterpolated(const LatticeFreqFunc
 template <typename Parameters>
 template <typename RDmn>
 void CoarsegrainingSp<Parameters>::compute_phi_r(func::function<ScalarType, RDmn>& phi_r) const {
+  if (concurrency_.id() == 0)
+    std::cout << "Compute phi_r\t" << dca::util::print_time() << std::endl;
+
   Profiler profiler(__FUNCTION__, "Coarsegraining", __LINE__);
+
   using KCluster = typename KClusterDmn::parameter_type;
   math::geometry::tetrahedron_mesh<KCluster> mesh(parameters_.get_k_mesh_recursion());
 

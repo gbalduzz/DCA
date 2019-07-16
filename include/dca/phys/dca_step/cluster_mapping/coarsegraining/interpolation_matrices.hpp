@@ -27,6 +27,7 @@
 #include "dca/phys/dca_step/cluster_mapping/coarsegraining/coarsegrain_domain_names.hpp"
 #include "dca/phys/dca_step/cluster_mapping/coarsegraining/coarsegraining_domain.hpp"
 #include "dca/phys/domains/cluster/centered_cluster_domain.hpp"
+#include "dca/util/print_time.hpp"
 
 namespace dca {
 namespace phys {
@@ -128,6 +129,8 @@ template <typename concurrency_type>
 void interpolation_matrices<scalar_type, k_dmn, func::dmn_0<coarsegraining_domain<K_dmn, NAME>>>::initialize(
     concurrency_type& concurrency) {
   assert(NAME == K or NAME == TETRAHEDRON_K);
+  if (concurrency.id() == 0)
+    std::cout << "Compute phi_r\t" << dca::util::print_time() << std::endl;
   Profiler profiler(__FUNCTION__, "Interpolation matrices", __LINE__);
 
   static std::once_flag flag;
