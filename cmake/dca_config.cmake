@@ -118,7 +118,7 @@ configure_file("${PROJECT_SOURCE_DIR}/include/dca/config/lattice_model.hpp.in"
 
 ################################################################################
 # Select the profiler type and enable auto-tuning.
-set(DCA_PROFILER "None" CACHE STRING "Profiler type, options are: None | Counting | PAPI.")
+set(DCA_PROFILER "Counting" CACHE STRING "Profiler type, options are: None | Counting | PAPI.")
 set_property(CACHE DCA_PROFILER PROPERTY STRINGS None Counting PAPI)
 
 if (DCA_PROFILER STREQUAL "Counting")
