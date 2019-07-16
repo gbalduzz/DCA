@@ -19,6 +19,7 @@
 #include <mutex>
 #include <utility>
 
+#include "dca/config/profiler.hpp"
 #include "dca/function/domains.hpp"
 #include "dca/function/function.hpp"
 #include "dca/linalg/matrix.hpp"
@@ -128,10 +129,12 @@ template <typename scalar_type, typename k_dmn, typename K_dmn, COARSEGRAIN_DOMA
 template <typename concurrency_type>
 void interpolation_matrices<scalar_type, k_dmn, func::dmn_0<coarsegraining_domain<K_dmn, NAME>>>::initialize(
     concurrency_type& concurrency) {
-  assert(NAME == K or NAME == TETRAHEDRON_K);
+  static_assert(NAME == K or NAME == TETRAHEDRON_K, "Name mismatch.");
+
   if (concurrency.id() == 0)
     std::cout << "\nInitialize interpolation matrices\t" << dca::util::print_time() << std::endl;
-  Profiler profiler(__FUNCTION__, "Interpolation matrices", __LINE__);
+
+  Profiler profiler("initialize 1", "Interpolation matrices", __LINE__);
 
   static std::once_flag flag;
 
@@ -180,11 +183,15 @@ template <typename scalar_type, typename k_dmn, typename K_dmn, COARSEGRAIN_DOMA
 template <typename concurrency_type>
 void interpolation_matrices<scalar_type, k_dmn, func::dmn_0<coarsegraining_domain<K_dmn, NAME>>>::initialize(
     concurrency_type& concurrency, int Q_ind) {
-  assert(NAME == K_PLUS_Q or NAME == Q_MINUS_K);
+  static_assert(NAME == K_PLUS_Q or NAME == Q_MINUS_K, "Name mismatch.");
 
   if (is_initialized())
     return;
 
+  if (concurrency.id() == 0)
+    std::cout << "\nInitialize interpolation matrices\t" << dca::util::print_time() << std::endl;
+
+  Profiler profiler("initialize 2", "Interpolation matrices", __LINE__);
   resize_matrices(concurrency);
 
   K_dmn K_dmn_obj;
