@@ -9,6 +9,6 @@ if (DCA_BUILD_DCA)
     cuda_add_cublas_to_target(main_dca)
   endif()
 
-  configure_file(input.json ${CMAKE_CURRENT_BINARY_DIR}/input.json COPYONLY)
+#  configure_file(input.json ${CMAKE_CURRENT_BINARY_DIR}/input.json COPYONLY)
 endif()
 
