@@ -193,14 +193,21 @@ void DcaLoop<ParametersType, DcaDataType, MCIntegratorType>::execute() {
 
     perform_cluster_exclusion_step();
 
-    double L2_Sigma_difference =
-        solve_cluster_problem(i);  // returned from cluster_solver::finalize
+    double L2_Sigma_difference = solve_cluster_problem(i);  // returned from cluster_solver::finalize
 
+    if (concurrency.id() == 0)
+      std::cout << "\n\t\t Adjust impurity self energy " << dca::util::print_time() << std::endl;
     adjust_impurity_self_energy();  // double-counting-correction
 
+    if (concurrency.id() == 0)
+      std::cout << "\t\t Perform lattice mapping " << dca::util::print_time() << std::endl;
     perform_lattice_mapping();
 
+    if (concurrency.id() == 0)
+      std::cout << "\t\t Update loop functions" << dca::util::print_time() << std::endl;
     update_DCA_loop_data_functions(i);
+    if (concurrency.id() == 0)
+      std::cout << "\t\t Updated! " << dca::util::print_time() << std::endl;
 
     if (L2_Sigma_difference <
         parameters.get_dca_accuracy())  // set the acquired accuracy on |Sigma_QMC - Sigma_cg|
@@ -358,7 +365,7 @@ void DcaLoop<ParametersType, DcaDataType, MCIntegratorType>::update_DCA_loop_dat
           parameters.get_beta() / M_PI;
 }
 
-}  // phys
-}  // dca
+}  // namespace phys
+}  // namespace dca
 
 #endif  // DCA_PHYS_DCA_LOOP_DCA_LOOP_HPP
