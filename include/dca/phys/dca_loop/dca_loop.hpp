@@ -217,9 +217,17 @@ void DcaLoop<ParametersType, DcaDataType, MCIntegratorType>::execute() {
 
 template <typename ParametersType, typename DcaDataType, typename MCIntegratorType>
 void DcaLoop<ParametersType, DcaDataType, MCIntegratorType>::finalize() {
+    if (concurrency.id() == 0)
+        std::cout << "\t\t Cmap self energy " << dca::util::print_time() << std::endl;
   perform_cluster_mapping_self_energy();
+    if (concurrency.id() == 0)
+        std::cout << "\t\t Sigma bands " << dca::util::print_time() << std::endl;
   MOMS.compute_Sigma_bands();
+    if (concurrency.id() == 0)
+        std::cout << "\t\t Sp properties " << dca::util::print_time() << std::endl;
   MOMS.compute_single_particle_properties();
+    if (concurrency.id() == 0)
+        std::cout << "\t\t Done! " << dca::util::print_time() << std::endl;
 }
 
 template <typename ParametersType, typename DcaDataType, typename MCIntegratorType>

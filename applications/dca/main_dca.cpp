@@ -81,6 +81,8 @@ int main(int argc, char** argv) {
       dca_loop.finalize();
     }
 
+    if (concurrency.id() == 0)
+      std::cout << "\t\t Stopping profiler " << dca::util::print_time() << std::endl;
     Profiler::stop(concurrency, parameters.get_filename_profiling());
 
     if (concurrency.id() == concurrency.first()) {
