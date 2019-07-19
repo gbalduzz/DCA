@@ -20,6 +20,7 @@
 #include "dca/io/json/json_reader.hpp"
 #include "dca/util/git_version.hpp"
 #include "dca/util/modules.hpp"
+#include "cuda_profiler_api.h"
 
 int main(int argc, char** argv) {
   if (argc < 2) {
@@ -73,6 +74,7 @@ int main(int argc, char** argv) {
 
     DcaLoopType dca_loop(parameters, dca_data, concurrency);
 
+    cudaProfilerStart();
     {
       Profiler profiler(__FUNCTION__, __FILE__, __LINE__);
 
@@ -80,6 +82,7 @@ int main(int argc, char** argv) {
       dca_loop.execute();
       dca_loop.finalize();
     }
+    cudaProfilerStop();
 
     if (concurrency.id() == 0)
       std::cout << "\t\t Stopping profiler " << dca::util::print_time() << std::endl;
