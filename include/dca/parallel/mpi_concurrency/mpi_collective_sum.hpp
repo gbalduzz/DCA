@@ -167,22 +167,21 @@ void MPICollectiveSum::sum(std::vector<scalar_type>& m) const {
 
 template <typename scalar_type>
 void MPICollectiveSum::sum(std::map<std::string, std::vector<scalar_type>>& m) const {
-  using Iterator = typename std::map<std::string, std::vector<scalar_type>>::iterator;
+  typedef typename std::map<std::string, std::vector<scalar_type>>::iterator iterator_type;
 
-  std::vector<scalar_type> values;
+  iterator_type it = m.begin();
 
-  // TODO: use MPI packing interface.
-  // Pack.
-  for (Iterator it = m.begin(); it != m.end(); ++it)
-    values.insert(values.end(), it->second.begin(), it->second.end());
+  for (; it != m.end(); ++it) {
+    std::vector<scalar_type> values((it->second).size());
 
-  sum(values);
+    for (size_t l = 0; l < (it->second).size(); l++)
+      values[l] = (it->second)[l];
 
-  // Unpack.
-  int val_idx = 0;
-  for (Iterator it = m.begin(); it != m.end(); ++it)
-    for (int i = 0; i < it->second.size(); ++i)
-      (it->second)[i] = values[val_idx++];
+    sum(values);
+
+    for (size_t l = 0; l < (it->second).size(); l++)
+      (it->second)[l] = values[l];
+  }
 }
 
 template <typename scalar_type, class domain>

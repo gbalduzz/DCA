@@ -221,7 +221,7 @@ void CountingProfiler<Event>::stop(concurrency_type& concurrency, std::string fi
 
   profiling_table_type& profiling_table = get_profiling_table(0);
 
-  concurrency.sum(profiling_table);
+  //  concurrency.sum(profiling_table);
 
   if (concurrency.id() == concurrency.first()) {
     to_JSON(file_name);
@@ -396,7 +396,7 @@ void CountingProfiler<Event>::print_counter(std::ostream& os, std::string name,
   os << "}";
 }
 
-}  // profiling
-}  // dca
+}  // namespace profiling
+}  // namespace dca
 
 #endif  // DCA_PROFILING_COUNTING_PROFILER_HPP

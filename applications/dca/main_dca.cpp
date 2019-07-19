@@ -84,11 +84,8 @@ int main(int argc, char** argv) {
     if (concurrency.id() == 0)
       std::cout << "\t\t Stopping profiler " << dca::util::print_time() << std::endl;
     Profiler::stop(concurrency, parameters.get_filename_profiling());
-      if (concurrency.id() == 0)
-          std::cout << "\t\t Stopping profiler " << dca::util::print_time() << std::endl;
 
-
-      if (concurrency.id() == concurrency.first()) {
+    if (concurrency.id() == concurrency.first()) {
       std::cout << "\nProcessor " << concurrency.id() << " is writing data." << std::endl;
       dca_loop.write();
 
