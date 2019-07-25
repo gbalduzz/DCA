@@ -48,8 +48,8 @@ class StdThreadQmciClusterSolver : public QmciSolver {
   using typename BaseClass::Profiler;
   using typename BaseClass::Rng;
 
-  using typename BaseClass::Walker;
   using typename BaseClass::Accumulator;
+  using typename BaseClass::Walker;
   using StdThreadAccumulatorType = stdthreadqmci::StdThreadQmciAccumulator<Accumulator>;
 
 public:
@@ -78,12 +78,12 @@ private:
   void printIntegrationMetadata() const;
 
 private:
-  using BaseClass::parameters_;
-  using BaseClass::data_;
-  using BaseClass::concurrency_;
-  using BaseClass::total_time_;
-  using BaseClass::dca_iteration_;
   using BaseClass::accumulator_;
+  using BaseClass::concurrency_;
+  using BaseClass::data_;
+  using BaseClass::dca_iteration_;
+  using BaseClass::parameters_;
+  using BaseClass::total_time_;
 
   std::atomic<int> walk_finished_;
   std::atomic<uint> measurements_done_;
@@ -474,12 +474,14 @@ void StdThreadQmciClusterSolver<QmciSolver>::readConfigurations() {
   if (parameters_.get_directory_config_read() == "")
     return;
 
+  Profiler profiler(__FUNCTION__, "stdthread-MC", __LINE__);
+
   try {
     const int n_available = findAvailableFiles();
     const int id_to_read = concurrency_.id() % n_available;
 
-    const std::string inp_name = parameters_.get_directory_config_read() + "/process_" +
-                                 std::to_string(id_to_read) + ".hdf5";
+    const std::string inp_name =
+        parameters_.get_directory_config_read() + "/process_" + std::to_string(id_to_read) + ".hdf5";
     io::HDF5Reader reader(false);
     reader.open_file(inp_name);
     for (int id = 0; id < config_dump_.size(); ++id)
@@ -533,8 +535,8 @@ void StdThreadQmciClusterSolver<QmciSolver>::printIntegrationMetadata() const {
   }
 }
 
-}  // solver
-}  // phys
-}  // dca
+}  // namespace solver
+}  // namespace phys
+}  // namespace dca
 
 #endif  // DCA_PHYS_DCA_STEP_CLUSTER_SOLVER_STDTHREAD_QMCI_STDTHREAD_QMCI_CLUSTER_SOLVER_HPP
