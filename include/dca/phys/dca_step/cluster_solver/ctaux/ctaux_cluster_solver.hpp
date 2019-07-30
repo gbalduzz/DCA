@@ -442,7 +442,10 @@ void CtauxClusterSolver<device_t, Parameters, Data>::collect_measurements() {
         dca_iteration_ == parameters_.get_dca_iterations() - 1) {
       Profiler profiler("QMC-two-particle-Greens-function", "QMC-collectives", __LINE__);
       G4 = accumulator_.get_sign_times_G4();
-      collect(G4);
+      if(compute_jack_knife_)
+          concurrency_.localSum(G4, concurrency_.first());
+      else
+          concurrency_.leaveOneOutSum(G4, true);
     }
 
     concurrency_.delayedSum(accumulator_.get_visited_expansion_order_k());
