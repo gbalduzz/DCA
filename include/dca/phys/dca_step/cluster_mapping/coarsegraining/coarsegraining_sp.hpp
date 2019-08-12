@@ -202,7 +202,7 @@ void CoarsegrainingSp<Parameters>::compute_G_K_w(const SigmaType& S_K_w, Cluster
     }
   });
 
-  concurrency_.gather(G_local, G_K_w, gang_);
+  concurrency_.allgather(G_local, G_K_w, gang_);
   G_K_w /= w_tot_;
 }
 

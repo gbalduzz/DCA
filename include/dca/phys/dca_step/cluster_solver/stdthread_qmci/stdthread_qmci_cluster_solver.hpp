@@ -71,7 +71,6 @@ private:
 
   void readConfigurations();
   void writeConfigurations() const;
-  int findAvailableFiles() const;
 
   void iterateOverLocalMeasurements(int walker_id, std::function<void(int, int, bool)>&& f);
 
@@ -453,16 +452,24 @@ void StdThreadQmciClusterSolver<QmciSolver>::startWalkerAndAccumulator(int id) {
 
 template <class QmciSolver>
 void StdThreadQmciClusterSolver<QmciSolver>::writeConfigurations() const {
-  if (parameters_.get_directory_config_write() == "")
+  if (parameters_.get_config_write_file() == "")
     return;
 
   try {
-    const std::string out_name = parameters_.get_directory_config_write() + "/process_" +
-                                 std::to_string(concurrency_.id()) + ".hdf5";
+    const std::string out_name = parameters_.get_config_write_file();
     io::HDF5Writer writer(false);
     writer.open_file(out_name);
-    for (int id = 0; id < config_dump_.size(); ++id)
-      writer.execute("configuration_" + std::to_string(id), config_dump_[id]);
+
+    io::Buffer local_configs;
+    for (const auto& config : config_dump_)
+      local_configs << config;
+
+    std::vector<int> sizes;
+    io::Buffer global_configs;
+    concurrency_.gather(local_configs, global_configs, sizes, concurrency_.first());
+
+    writer.execute("configurations", global_configs);
+    writer.execute("sizes", sizes);
   }
   catch (std::exception& err) {
     std::cerr << err.what() << "\nCould not write the configuration.\n";
@@ -471,24 +478,36 @@ void StdThreadQmciClusterSolver<QmciSolver>::writeConfigurations() const {
 
 template <class QmciSolver>
 void StdThreadQmciClusterSolver<QmciSolver>::readConfigurations() {
-  if (parameters_.get_directory_config_read() == "")
+  if (parameters_.get_config_read_file() == "")
     return;
 
   Profiler profiler(__FUNCTION__, "stdthread-MC", __LINE__);
 
   try {
-    const int n_available = findAvailableFiles();
-    const int id_to_read = concurrency_.id() % n_available;
+    io::Buffer local_configs;
+    io::Buffer global_configs;
+    std::vector<int> sizes;
 
-    const std::string inp_name =
-        parameters_.get_directory_config_read() + "/process_" + std::to_string(id_to_read) + ".hdf5";
-    io::HDF5Reader reader(false);
-    reader.open_file(inp_name);
-    for (int id = 0; id < config_dump_.size(); ++id)
-      reader.execute("configuration_" + std::to_string(id), config_dump_[id]);
+    if (concurrency_.id() == concurrency_.first()) {
+      io::HDF5Reader reader(false);
+      reader.open_file(parameters_.get_config_read_file());
+
+      std::cout << "Reading configurations from " << parameters_.get_config_read_file() << " "
+                << dca::util::print_time() << "\n";
+      reader.execute("configurations", global_configs);
+      reader.execute("sizes", sizes);
+    }
+
+    std::cout << "Scattering configurations " << dca::util::print_time() << "\n";
+    concurrency_.scatter(global_configs, local_configs, sizes, concurrency_.first());
+    std::cout << "Done " << dca::util::print_time() << "\n";
+
+    for (int i = 0; i < nr_walkers_; ++i) {
+      config_dump_[i].clear();
+      config_dump_[i] << local_configs;
+    }
 
     if (concurrency_.id() == 0) {
-      std::cout << "Read configuration from " << parameters_.get_directory_config_read() << ".\n";
     }
   }
   catch (std::exception& err) {
@@ -496,24 +515,6 @@ void StdThreadQmciClusterSolver<QmciSolver>::readConfigurations() {
     for (auto& config : config_dump_)
       config.clear();
   }
-}
-
-template <class QmciSolver>
-int StdThreadQmciClusterSolver<QmciSolver>::findAvailableFiles() const {
-  int result = 0;
-  if (concurrency_.id() == 0) {
-    try {
-      // Count the number of configuration files.
-      const std::string cmd =
-          "ls -1 " + parameters_.get_directory_config_read() + "/process_*.hdf5 | wc -l";
-      result = std::atoi(dca::util::getStdoutFromCommand(cmd).c_str());
-    }
-    catch (...) {
-    }
-  }
-
-  concurrency_.broadcast(result, 0);
-  return result;
 }
 
 template <class QmciSolver>

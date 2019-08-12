@@ -7,7 +7,7 @@
 //
 // Author: Giovanni Balduzzi (gbalduzz@itp.phys.ethz.ch)
 //
-// This class provides a no-op interface for gather functions without MPI.
+// This class provides a no-op interface for allgather functions without MPI.
 
 #ifndef DCA_PARALLEL_MPI_CONCURRENCY_SERIAL_GATHER_HPP
 #define DCA_PARALLEL_MPI_CONCURRENCY_SERIAL_GATHER_HPP
@@ -31,12 +31,33 @@ public:
   SerialGather() = default;
 
   template <class Scalar, class DmnIn, class DmnOut, class Gang>
-  void gather(const func::function<Scalar, DmnIn>& f_in, func::function<Scalar, DmnOut>& f_out,
-              const Gang& /*gang*/) const {
-    // TODO: move.
+  void allgather(const func::function<Scalar, DmnIn>& f_in, func::function<Scalar, DmnOut>& f_out,
+                 const Gang& /*gang*/) const {
     if (f_in.size() != f_out.size())
       throw(std::logic_error("Size mismatch."));
     std::copy_n(f_in.values(), f_in.size(), f_out.values());
+  }
+
+  template <class T>
+  void gather(const std::vector<T>& in, std::vector<T>& out, std::vector<int>& /*sizes*/,
+              int /*root*/ = 0) const {
+    out = in;
+  }
+  template <class T, class Gang>
+  void gather(const std::vector<T>& in, std::vector<T>& out, std::vector<int>& /*sizes*/,
+              int /*root*/, const Gang& /*gang*/) {
+    out = in;
+  }
+
+  template <class T>
+  void scatter(const std::vector<T>& in, std::vector<T>& out, const std::vector<int>& /*sizes*/,
+               int /*root*/ = 0) const {
+    out = in;
+  }
+  template <class T, class Gang>
+  void scatter(const std::vector<T>& in, std::vector<T>& out, const std::vector<int>& /*sizes*/,
+               int /*root*/, const Gang& /*gang*/) const {
+    out = in;
   }
 };
 

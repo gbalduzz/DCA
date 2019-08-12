@@ -73,11 +73,30 @@ public:
     return util::getBounds(id(), number_of_processors(), dmn);
   }
 
-  // Using gather with no gang uses the entire concurrency.
-//  template <class Scalar, class DmnIn, class DmnOut>
-//  void gather(const func::function<Scalar, DmnIn>& f_in, func::function<Scalar, DmnOut>& f_out) const {
-//    gather(f_in, f_out, *this);
-//  }
+  // Provide default gang for gather and scatter operations.
+  using MPIGather::scatter;
+  template <class T>
+  void scatter(const std::vector<T>& in, std::vector<T>& out, const std::vector<int>& sizes,
+               int root = 0) const {
+    MPIGather::scatter(in, out, sizes, root, *this);
+  }
+
+  using MPIGather::gather;
+  template <class T>
+  void gather(const std::vector<T>& in, std::vector<T>& out, std::vector<int>& sizes,
+               int root = 0) const {
+    MPIGather::gather(in, out, sizes, root, *this);
+  }
+
+  //  template <class Scalar, class DmnIn, class DmnOut>
+  //  void allgather(const func::function<Scalar, DmnIn>& f_in,
+  //                 func::function<Scalar, DmnOut>& f_out) const {
+  //    MPIGather::allgather(f_in, f_out, *this);
+  //  }
+  //  template <class T>
+  //  void gather(const std::vector<T>& in, int root, std::vector<T>& out, std::vector<int>& sizes) const {
+  //    MPIGather::gather(in, root, out, sizes, *this);
+  //  }
 
   friend std::ostream& operator<<(std::ostream& some_ostream, const MPIConcurrency& this_concurrency);
 

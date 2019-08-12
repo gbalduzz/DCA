@@ -43,7 +43,7 @@ TEST(MPIGatherTest, GatherLocalDmn) {
     val2[i] = i;
   Dmn2::set_elements(val2);
 
-  dca::parallel::MPIGang gang(*concurrency, 4);
+  dca::parallel::MPIGang gang(*concurrency, 3);
 
   LocalDmn::initialize(gang);
 
@@ -54,12 +54,55 @@ TEST(MPIGatherTest, GatherLocalDmn) {
     for (int i1 = 0; i1 < Dmn1::get_size(); ++i1)
       local_f(i1, i2) = Dmn1::get_elements()[i1] * LocalDmn::get_elements()[i2];
 
-
-  concurrency->gather(local_f, f, gang);
+  concurrency->allgather(local_f, f, gang);
 
   for (int i2 = 0; i2 < Dmn2::get_size(); ++i2)
     for (int i1 = 0; i1 < Dmn1::get_size(); ++i1)
       EXPECT_EQ(Dmn1::get_elements()[i1] * Dmn2::get_elements()[i2], f(i1, i2));
+}
+
+TEST(MPIGatherTest, GatherVector) {
+  const int id = concurrency->id();
+  std::vector<int> local_data(id + 1);
+  for (int i = 0; i < local_data.size(); ++i)
+    local_data[i] = id * (id + 1) / 2 + i;  // Generate distributed 0,1,..n sequence.
+
+  std::vector<int> sizes, global_data;
+    concurrency->gather(local_data, global_data, sizes, 0, *concurrency);
+
+  if (id == 0) {
+    EXPECT_EQ(concurrency->get_size(), sizes.size());
+    for (int i = 0; i < sizes.size(); ++i)
+      EXPECT_EQ(i + 1, sizes[i]);
+
+    EXPECT_EQ((concurrency->get_size()) * (concurrency->get_size() + 1) / 2, global_data.size());
+    for (int i = 0; i < global_data.size(); ++i)
+      EXPECT_EQ(i, global_data[i]);
+  }
+}
+
+TEST(MPIGatherTest, ScatterVector) {
+  std::vector<int> global_data;
+  std::vector<int> sizes;
+
+  if (concurrency->id() == 0) {
+    sizes.resize(concurrency->get_size());
+    global_data.resize(concurrency->get_size() * (concurrency->get_size() + 1) / 2);
+
+    for (int i = 0; i < global_data.size(); ++i)
+      global_data[i] = i;
+    for (int i = 0; i < sizes.size(); ++i)
+      sizes[i] = i + 1;
+  }
+
+  std::vector<int> local_data;
+    concurrency->scatter(global_data, local_data, sizes, 0, *concurrency);
+
+  EXPECT_EQ(sizes[concurrency->id()], local_data.size());
+
+  const int start = concurrency->id() * (concurrency->id() + 1) / 2;
+  for (int i = 0; i < local_data.size(); ++i)
+    EXPECT_EQ(start + i, local_data[i]);
 }
 
 int main(int argc, char** argv) {
@@ -76,5 +119,6 @@ int main(int argc, char** argv) {
 
   result = RUN_ALL_TESTS();
 
+  concurrency.release();
   return result;
 }
