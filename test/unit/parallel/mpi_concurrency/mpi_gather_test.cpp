@@ -62,45 +62,36 @@ TEST(MPIGatherTest, GatherLocalDmn) {
 }
 
 TEST(MPIGatherTest, GatherVector) {
+  constexpr int local_size = 5;
   const int id = concurrency->id();
-  std::vector<int> local_data(id + 1);
+  std::vector<int> local_data(local_size);
   for (int i = 0; i < local_data.size(); ++i)
-    local_data[i] = id * (id + 1) / 2 + i;  // Generate distributed 0,1,..n sequence.
+    local_data[i] = id * local_size + i;
 
   std::vector<int> sizes, global_data;
-    concurrency->gather(local_data, global_data, sizes, 0, *concurrency);
+  concurrency->gather(local_data, global_data, 0);
 
   if (id == 0) {
-    EXPECT_EQ(concurrency->get_size(), sizes.size());
-    for (int i = 0; i < sizes.size(); ++i)
-      EXPECT_EQ(i + 1, sizes[i]);
-
-    EXPECT_EQ((concurrency->get_size()) * (concurrency->get_size() + 1) / 2, global_data.size());
+    EXPECT_EQ(concurrency->get_size() * local_size, global_data.size());
     for (int i = 0; i < global_data.size(); ++i)
       EXPECT_EQ(i, global_data[i]);
   }
 }
 
 TEST(MPIGatherTest, ScatterVector) {
+  constexpr int local_size = 4;
   std::vector<int> global_data;
-  std::vector<int> sizes;
 
   if (concurrency->id() == 0) {
-    sizes.resize(concurrency->get_size());
-    global_data.resize(concurrency->get_size() * (concurrency->get_size() + 1) / 2);
-
+    global_data.resize(concurrency->get_size() * local_size);
     for (int i = 0; i < global_data.size(); ++i)
       global_data[i] = i;
-    for (int i = 0; i < sizes.size(); ++i)
-      sizes[i] = i + 1;
   }
 
   std::vector<int> local_data;
-    concurrency->scatter(global_data, local_data, sizes, 0, *concurrency);
+  concurrency->scatter(global_data, local_data, 0);
 
-  EXPECT_EQ(sizes[concurrency->id()], local_data.size());
-
-  const int start = concurrency->id() * (concurrency->id() + 1) / 2;
+  const int start = concurrency->id() * local_size;
   for (int i = 0; i < local_data.size(); ++i)
     EXPECT_EQ(start + i, local_data[i]);
 }

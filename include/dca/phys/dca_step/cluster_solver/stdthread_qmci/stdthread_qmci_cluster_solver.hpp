@@ -456,20 +456,26 @@ void StdThreadQmciClusterSolver<QmciSolver>::writeConfigurations() const {
     return;
 
   try {
-    const std::string out_name = parameters_.get_config_write_file();
-    io::HDF5Writer writer(false);
-    writer.open_file(out_name);
-
     io::Buffer local_configs;
     for (const auto& config : config_dump_)
       local_configs << config;
 
-    std::vector<int> sizes;
-    io::Buffer global_configs;
-    concurrency_.gather(local_configs, global_configs, sizes, concurrency_.first());
+    // Pad the local configurations.
+    int max_size = local_configs.size();
+    concurrency_.max(max_size);
+    local_configs.resize(max_size, 0);
 
-    writer.execute("configurations", global_configs);
-    writer.execute("sizes", sizes);
+    io::Buffer global_configs;
+
+    concurrency_.gather(local_configs, global_configs, concurrency_.first());
+
+    if (concurrency_.id() == concurrency_.first()) {
+      const std::string out_name = parameters_.get_config_write_file();
+      io::HDF5Writer writer;
+      writer.open_file(out_name);
+      writer.execute("configurations", global_configs);
+      writer.execute("n_processes", concurrency_.get_size());
+    }
   }
   catch (std::exception& err) {
     std::cerr << err.what() << "\nCould not write the configuration.\n";
@@ -486,7 +492,6 @@ void StdThreadQmciClusterSolver<QmciSolver>::readConfigurations() {
   try {
     io::Buffer local_configs;
     io::Buffer global_configs;
-    std::vector<int> sizes;
 
     if (concurrency_.id() == concurrency_.first()) {
       io::HDF5Reader reader(false);
@@ -494,20 +499,26 @@ void StdThreadQmciClusterSolver<QmciSolver>::readConfigurations() {
 
       std::cout << "Reading configurations from " << parameters_.get_config_read_file() << " "
                 << dca::util::print_time() << "\n";
+      int old_processes;
       reader.execute("configurations", global_configs);
-      reader.execute("sizes", sizes);
+
+      reader.execute("n_processes", old_processes);
+      if (concurrency_.get_size() > old_processes)
+        throw(std::logic_error("not enough inoput configurations"));
+      else if (concurrency_.get_size() < old_processes)
+        global_configs.resize(global_configs.size() / old_processes * concurrency_.get_size());
+
+      std::cout << "Scattering configurations " << dca::util::print_time() << "\n";
     }
 
-    std::cout << "Scattering configurations " << dca::util::print_time() << "\n";
-    concurrency_.scatter(global_configs, local_configs, sizes, concurrency_.first());
-    std::cout << "Done " << dca::util::print_time() << "\n";
+    concurrency_.scatter(global_configs, local_configs, concurrency_.first());
 
-    for (int i = 0; i < nr_walkers_; ++i) {
-      config_dump_[i].clear();
-      config_dump_[i] << local_configs;
-    }
+    if (concurrency_.id() == concurrency_.first())
+      std::cout << "Done " << dca::util::print_time() << "\n";
 
-    if (concurrency_.id() == 0) {
+    for (auto& config : config_dump_) {
+      config.clear();
+      local_configs >> config;
     }
   }
   catch (std::exception& err) {

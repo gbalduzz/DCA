@@ -39,24 +39,21 @@ public:
   }
 
   template <class T>
-  void gather(const std::vector<T>& in, std::vector<T>& out, std::vector<int>& /*sizes*/,
-              int /*root*/ = 0) const {
+  void gather(const std::vector<T>& in, std::vector<T>& out, int /*root*/ = 0) const {
     out = in;
   }
   template <class T, class Gang>
-  void gather(const std::vector<T>& in, std::vector<T>& out, std::vector<int>& /*sizes*/,
-              int /*root*/, const Gang& /*gang*/) {
+  void gather(const std::vector<T>& in, std::vector<T>& out, int /*root*/, const Gang& /*gang*/) {
     out = in;
   }
 
   template <class T>
-  void scatter(const std::vector<T>& in, std::vector<T>& out, const std::vector<int>& /*sizes*/,
-               int /*root*/ = 0) const {
+  void scatter(const std::vector<T>& in, std::vector<T>& out, int /*root*/ = 0) const {
     out = in;
   }
   template <class T, class Gang>
-  void scatter(const std::vector<T>& in, std::vector<T>& out, const std::vector<int>& /*sizes*/,
-               int /*root*/, const Gang& /*gang*/) const {
+  void scatter(const std::vector<T>& in, std::vector<T>& out, int /*root*/,
+               const Gang& /*gang*/) const {
     out = in;
   }
 };
