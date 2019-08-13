@@ -112,6 +112,14 @@ public:
       return 0;
   }
 
+  auto get_order_avg() const {
+    return order_avg_;
+  }
+
+  auto get_sign_avg() const {
+    return sign_avg_;
+  }
+
 private:
   void add_non_interacting_spins_to_configuration();
 
@@ -285,6 +293,9 @@ private:
   std::array<linalg::util::CudaEvent, 2> m_computed_events_;
 
   bool config_initialized_;
+
+  util::Accumulator<uint> order_avg_;
+  util::Accumulator<int> sign_avg_;
 };
 
 template <dca::linalg::DeviceType device_t, class parameters_type, class MOMS_type>
@@ -492,6 +503,10 @@ void CtauxWalker<device_t, parameters_type, MOMS_type>::doSweep() {
 
   if (!thermalized)
     ++warm_up_sweeps_done_;
+  else {
+    order_avg_.addSample(configuration.get_number_of_interacting_HS_spins());
+    sign_avg_.addSample(sign);
+  }
 }
 
 template <dca::linalg::DeviceType device_t, class parameters_type, class MOMS_type>
@@ -1610,9 +1625,9 @@ io::Buffer CtauxWalker<device_t, parameters_type, MOMS_type>::dumpConfig() const
   return buff;
 }
 
-}  // ctaux
-}  // solver
-}  // phys
-}  // dca
+}  // namespace ctaux
+}  // namespace solver
+}  // namespace phys
+}  // namespace dca
 
 #endif  // DCA_PHYS_DCA_STEP_CLUSTER_SOLVER_CTAUX_CTAUX_WALKER_HPP

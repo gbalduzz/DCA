@@ -104,6 +104,9 @@ private:
   std::condition_variable queue_insertion_;
 
   std::vector<dca::io::Buffer> config_dump_;
+
+  using BaseClass::sign_avg_;
+  using BaseClass::order_avg_;
 };
 
 template <class QmciSolver>
@@ -285,6 +288,8 @@ void StdThreadQmciClusterSolver<QmciSolver>::startWalker(int id) {
 
   config_dump_[walker_index] = walker.dumpConfig();
   walker_fingerprints_[walker_index] = walker.deviceFingerprint();
+  order_avg_ += walker.get_order_avg();
+  sign_avg_ += walker.get_sign_avg();
 
   Profiler::stop_threading(id);
 
@@ -444,6 +449,8 @@ void StdThreadQmciClusterSolver<QmciSolver>::startWalkerAndAccumulator(int id) {
   config_dump_[id] = walker.dumpConfig();
   walker_fingerprints_[id] = walker.deviceFingerprint();
   accum_fingerprints_[id] = accumulator_obj.deviceFingerprint();
+  order_avg_ += walker.get_order_avg();
+  sign_avg_ += walker.get_sign_avg();
 
   Profiler::stop_threading(id);
 
@@ -516,7 +523,7 @@ int StdThreadQmciClusterSolver<QmciSolver>::findAvailableFiles() const {
 
 template <class QmciSolver>
 void StdThreadQmciClusterSolver<QmciSolver>::printIntegrationMetadata() const {
-  if (concurrency_.id() == concurrency_.first()) {
+    if (concurrency_.id() == concurrency_.first()) {
     std::cout << "Threaded on-node integration has ended: " << dca::util::print_time()
               << "\n\nTotal number of measurements: " << parameters_.get_measurements() << "\n";
     //              << "QMC-time\t" << total_time_ << "\n";

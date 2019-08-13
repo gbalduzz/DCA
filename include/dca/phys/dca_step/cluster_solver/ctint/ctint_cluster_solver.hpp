@@ -71,7 +71,7 @@ public:
   double computeDensity() const;
 
   template <class Writer>
-  void write(Writer& /*writer*/) {}
+  void write(Writer& writer);
 
   // For testing purposes.
   // Returns the function G(k,w) without averaging across MPI ranks.
@@ -130,6 +130,9 @@ protected:
   double total_time_ = 0;
   double warm_up_time_ = 0;
   int dca_iteration_ = 0;
+
+  util::Accumulator<uint> order_avg_;
+  util::Accumulator<int> sign_avg_;
 
 private:
   bool perform_tp_accumulation_;
@@ -250,19 +253,22 @@ void CtintClusterSolver<device_t, Parameters, use_submatrix>::finalize() {
   data_.G_k_t += data_.G0_k_t_cluster_excluded;
   math::transform::FunctionTransform<Kdmn, RDmn>::execute(data_.G_k_t, data_.G_r_t);
 
+  // metadata
   auto local_time = total_time_;
   concurrency_.sum(total_time_);
   auto gflop = accumulator_.getFLOPs() * 1e-9;
   concurrency_.sum(gflop);
+  order_avg_.collect(concurrency_);
+  sign_avg_.collect(concurrency_);  // TODO: reuse same avg.
 
-  if (concurrency_.id() == 0) {
-    std::cout << "\n\t\t Collected measurements \t" << dca::util::print_time() << "\n"
+  if (concurrency_.id() == concurrency_.first()) {
+    std::cout << "\n\t\t Collect measurements ended \t" << dca::util::print_time() << "\n"
               << "\n\t\t\t QMC-local-time : " << local_time << " [sec]"
               << "\n\t\t\t QMC-total-time : " << total_time_ << " [sec]"
-              << "\n\t\t\t Gflop   : " << gflop << " [Gf]"
-              << "\n\t\t\t Gflop/s   : " << gflop / local_time << " [Gf/s]"
-              << "\n\t\t\t sign     : " << avg_sign
-              << "\n\t\t\t Density = " << computeDensity() << "\n" << std::endl;
+              << "\n\t\t\t FLOPs   : " << accumulator_.getFLOPs()
+              << "\n\t\t\t FLOP/s   : " << accumulator_.getFLOPs() / local_time
+              << "\n\t\t\t sign     : " << sign_avg_.mean()
+              << "\n\t\t\t average order     : " << order_avg_.mean() << " \n";
   }
 }
 
@@ -285,12 +291,8 @@ double CtintClusterSolver<device_t, Parameters, use_submatrix>::finalize(
   concurrency_.sum_and_average(loop_data.Sigma_zero_moment);
   concurrency_.sum_and_average(loop_data.standard_deviation);
 
-  concurrency_.sum_and_average(loop_data.average_expansion_order(dca_iteration_) =
-                                   accumulator_.avgOrder());
-
-  loop_data.sign(dca_iteration_) =
-      static_cast<double>(accumulator_.get_accumulated_sign()) / parameters_.get_measurements();
-  concurrency_.sum_and_average(loop_data.sign(dca_iteration_));
+  loop_data.average_expansion_order(dca_iteration_) = order_avg_.mean();
+  loop_data.sign(dca_iteration_) = sign_avg_.mean();
 
   concurrency_.sum_and_average(loop_data.thermalization_per_mpi_task(dca_iteration_) = warm_up_time_);
   concurrency_.sum_and_average(loop_data.MC_integration_per_mpi_task(dca_iteration_) = total_time_);
@@ -425,9 +427,9 @@ double CtintClusterSolver<device_t, Parameters, use_submatrix>::L2Difference() c
 template <dca::linalg::DeviceType device_t, class Parameters, bool use_submatrix>
 double CtintClusterSolver<device_t, Parameters, use_submatrix>::computeDensity() const {
   double result(0.);
-  const int t0_minus = Tdmn::dmn_size() / 2 - 1;
+  const int t0 = Tdmn::dmn_size() / 2;
   for (int i = 0; i < Nu::dmn_size(); i++)
-    result += data_.G_r_t(i, i, RDmn::parameter_type::origin_index(), t0_minus);
+    result += 1 - data_.G_r_t(i, i, RDmn::parameter_type::origin_index(), t0);
 
   return result;
 }
@@ -477,6 +479,18 @@ auto CtintClusterSolver<device_t, Parameters, use_submatrix>::local_G_k_w() cons
   computeG_k_w(data_.G0_k_w_cluster_excluded, M, G_k_w);
 
   return G_k_w;
+}
+
+template <dca::linalg::DeviceType device_t, class Parameters, bool use_submatrix>
+template <class Writer>
+void CtintClusterSolver<device_t, Parameters, use_submatrix>::write(Writer& writer) {
+  writer.open_group("CT-INT-solver");
+
+  writer.execute("sign", sign_avg_.mean());
+  writer.execute("order", order_avg_.mean());
+  writer.execute("density", computeDensity());
+
+  writer.close_group();
 }
 
 }  // namespace solver

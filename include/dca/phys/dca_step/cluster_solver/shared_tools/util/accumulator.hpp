@@ -52,7 +52,7 @@ struct MeanType<std::complex<T>, typename std::enable_if_t<std::is_floating_poin
   using type = std::complex<T>;
 };
 
-}  // details
+}  // namespace details
 
 template <typename T>
 class Accumulator {
@@ -90,14 +90,26 @@ public:
     sum_ = {};
   }
 
+  Accumulator<T>& operator+=(const Accumulator<T>& rhs) {
+    count_ += rhs.count_;
+    sum_ += rhs.sum_;
+    return *this;
+  }
+
+  template <class Concurrency>
+  void collect(const Concurrency& concurrency) {
+    concurrency.sum(count_);
+    concurrency.sum(sum_);
+  }
+
 private:
   CountType count_;
   SampleType sum_;
 };
 
-}  // util
-}  // solver
-}  // phys
-}  // dca
+}  // namespace util
+}  // namespace solver
+}  // namespace phys
+}  // namespace dca
 
 #endif  // DCA_PHYS_DCA_STEP_CLUSTER_SOLVER_SHARED_TOOLS_UTIL_ACCUMULATOR_HPP

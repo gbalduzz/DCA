@@ -135,6 +135,9 @@ protected:
 
   int dca_iteration_;
 
+  util::Accumulator<uint> order_avg_;
+  util::Accumulator<int> sign_avg_;
+
 private:
   Rng rng_;
 
@@ -184,10 +187,20 @@ CtauxClusterSolver<device_t, Parameters, Data>::CtauxClusterSolver(const Paramet
 template <dca::linalg::DeviceType device_t, class Parameters, class Data>
 template <typename Writer>
 void CtauxClusterSolver<device_t, Parameters, Data>::write(Writer& writer) {
-  writer.open_group("CT-AUX-SOLVER-functions");
+  writer.open_group("CT-AUX-solver");
 
   writer.execute(Sigma_old_);
   writer.execute(Sigma_new_);
+
+  writer.execute("sign", sign_avg_.mean());
+  writer.execute("order", order_avg_.mean());
+
+  double density = 0;
+  for (int i = 0; i < nu::dmn_size(); i++) {
+    density += 1. - data_.G_r_t(i, i, RClusterDmn::parameter_type::origin_index(), 0);
+  }
+
+  writer.execute("density", density);
 
   accumulator_.write(writer);
 
@@ -290,10 +303,8 @@ double CtauxClusterSolver<device_t, Parameters, Data>::finalize(dca_info_struct_
     integral += accumulator_.get_visited_expansion_order_k()(l) * l;
   }
 
-  dca_info_struct.average_expansion_order(dca_iteration_) = integral / total;
-
-  dca_info_struct.sign(dca_iteration_) =
-      double(accumulator_.get_accumulated_sign()) / accumulator_.get_number_of_measurements();
+  dca_info_struct.average_expansion_order(dca_iteration_) = order_avg_.mean();
+  dca_info_struct.sign(dca_iteration_) = sign_avg_.mean();
 
   dca_info_struct.thermalization_per_mpi_task(dca_iteration_) =
       thermalization_time_ / double(concurrency_.number_of_processors());
@@ -418,6 +429,9 @@ void CtauxClusterSolver<device_t, Parameters, Data>::collect_measurements() {
     concurrency_.sum(accumulator_.get_Gflop());
     accumulated_sign_ = accumulator_.get_accumulated_sign();
     collect(accumulated_sign_);
+
+    order_avg_.collect(concurrency_);
+    sign_avg_.collect(concurrency_);
   }
 
   if (concurrency_.id() == concurrency_.first())

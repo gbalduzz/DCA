@@ -77,7 +77,7 @@ public:
     return sign_;
   }
 
-  void computeM(MatrixPair& m_accum, const std::vector<cudaStream_t >& /*streams*/) const;
+  void computeM(MatrixPair& m_accum, const std::vector<cudaStream_t>& /*streams*/) const;
 
   void markThermalized();
 
@@ -91,9 +91,18 @@ public:
   int order() const {
     return configuration_.size();
   }
-  double avgOrder() const {
-    return order_avg_.count() ? order_avg_.mean() : order();
+    double avgOrder() const {
+      return order_avg_.count() ? order_avg_.mean() : order();
+    }
+
+  auto get_order_avg() const {
+    return order_avg_;
   }
+
+  auto get_sign_avg() const {
+    return sign_avg_;
+  }
+
   int sign() const {
     return sign_;
   }
