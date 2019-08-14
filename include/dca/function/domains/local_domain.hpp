@@ -71,10 +71,10 @@ std::size_t LocalDomain<BaseDomain, id>::offset_ = 0;
 template <class BaseDomain, int id>
 template <class Grouping>
 void LocalDomain<BaseDomain, id>::initialize(const Grouping& group) {
-  if (initialized_ && group.get_id() == 0) {
-    std::cerr << "Warning: domain " << get_name() << " with id " << id << " is reinitialized."
-              << std::endl;
-  }
+  //  if (initialized_ && group.get_id() == 0) {
+  //    std::cerr << "Warning: domain " << get_name() << " with id " << id << " is reinitialized."
+  //              << std::endl;
+  //  }
 
   const std::size_t global_size = BaseDomain::get_size();
   padded_size_ = dca::util::ceilDiv(global_size, std::size_t(group.get_size()));
