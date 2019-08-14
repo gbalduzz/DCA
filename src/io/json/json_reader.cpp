@@ -59,5 +59,5 @@ void JSONReader::parse(std::string& file_name_ref) {
     ;
 }
 
-}  // io
-}  // dca
+}  // namespace io
+}  // namespace dca
