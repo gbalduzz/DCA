@@ -56,8 +56,9 @@ protected:
   using Profiler = typename Parameters::profiler_type;
   using Concurrency = typename Parameters::concurrency_type;
 
+  using MCRealType = float;
   using Walker = ctaux::CtauxWalker<device_t, Parameters, Data>;
-  using Accumulator = ctaux::CtauxAccumulator<device_t, Parameters, Data>;
+  using Accumulator = ctaux::CtauxAccumulator<device_t, Parameters, Data, MCRealType>;
 
   static constexpr linalg::DeviceType device = device_t;
 

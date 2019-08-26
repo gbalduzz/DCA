@@ -68,6 +68,8 @@ public:
   //               the other function's construction.
   // Postcondition: The function's name is unchanged.
   function<scalartype, domain>& operator=(const function<scalartype, domain>& other);
+  template <typename Scalar2>
+  function<scalartype, domain>& operator=(const function<Scalar2, domain>& other);
 
   // Move assignment operator
   // Replaces the function's elements with those of other using move semantics.
@@ -190,7 +192,6 @@ public:
   void operator-=(const function<scalartype, domain>& other);
   void operator*=(const function<scalartype, domain>& other);
   void operator/=(const function<scalartype, domain>& other);
-
 
   void operator=(scalartype c);
   void operator+=(scalartype c);
@@ -320,6 +321,18 @@ function<scalartype, domain>& function<scalartype, domain>::operator=(
 
     std::copy_n(other.values(), Nb_elements, fnc_values);
   }
+
+  return *this;
+}
+
+template <typename Scalar, class domain>
+template <typename Scalar2>
+function<Scalar, domain>& function<Scalar, domain>::operator=(const function<Scalar2, domain>& other) {
+  if (size() != other.size()) {
+    throw(std::logic_error("Function size does not match."));
+  }
+
+  std::copy_n(other.values(), Nb_elements, fnc_values);
 
   return *this;
 }
@@ -463,7 +476,7 @@ void function<scalartype, domain>::operator*=(const scalartype c) {
 
 template <typename scalartype, class domain>
 void function<scalartype, domain>::operator/=(const scalartype c) {
-    for (int linind = 0; linind < Nb_elements; linind++)
+  for (int linind = 0; linind < Nb_elements; linind++)
     fnc_values[linind] /= c;
 }
 
@@ -623,7 +636,7 @@ void function<scalartype, domain>::unpack(const concurrency_t& concurrency, char
   concurrency.unpack(buffer, buffer_size, position, *this);
 }
 
-}  // func
-}  // dca
+}  // namespace func
+}  // namespace dca
 
 #endif  // DCA_FUNCTION_FUNCTION_HPP

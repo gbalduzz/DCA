@@ -94,8 +94,8 @@ public:
   // In: M_array: stores the M matrix for each spin sector.
   // In: configs: stores the walker's configuration for each spin sector.
   // In: sign: sign of the configuration.
-  template <class Configuration>
-  double accumulate(const std::array<linalg::Matrix<double, linalg::CPU>, 2>& M_pair,
+  template <class Configuration, typename RealIn>
+  double accumulate(const std::array<linalg::Matrix<RealIn, linalg::CPU>, 2>& M_pair,
                     const std::array<Configuration, 2>& configs, int sign);
 
   // Empty method for compatibility with GPU version.
@@ -248,9 +248,9 @@ void TpAccumulator<Parameters, linalg::CPU>::initializeG0() {
 }
 
 template <class Parameters>
-template <class Configuration>
+template <class Configuration, typename RealIn>
 double TpAccumulator<Parameters, linalg::CPU>::accumulate(
-    const std::array<linalg::Matrix<double, linalg::CPU>, 2>& M_pair,
+    const std::array<linalg::Matrix<RealIn, linalg::CPU>, 2>& M_pair,
     const std::array<Configuration, 2>& configs, const int sign) {
   Profiler profiler("accumulate", "tp-accumulation", __LINE__, thread_id_);
   double gflops(0.);
@@ -451,7 +451,7 @@ double TpAccumulator<Parameters, linalg::CPU>::updateG4(TpGreensFunction& G4) {
                                    momentum_sum(k1, k_ex), w_plus_w_ex(w2, w_ex),
                                    w_plus_w_ex(w1, w_ex), -sign_over_2, true);
                 }
-            }
+        }
       }
       flops += n_loops * 2 * flops_update_atomic;
       break;
