@@ -132,8 +132,8 @@ protected:
 
   Complex getGSingleband(int s, int k1, int k2, int w1, int w2) const;
 
-  template <class Configuration>
-  float computeM(const std::array<linalg::Matrix<double, linalg::CPU>, 2>& M_pair,
+  template <class Configuration, typename RealIn>
+  float computeM(const std::array<linalg::Matrix<RealIn, linalg::CPU>, 2>& M_pair,
                  const std::array<Configuration, 2>& configs);
 
   double updateG4(TpGreensFunction& G4_channel);
@@ -268,9 +268,9 @@ double TpAccumulator<Parameters, linalg::CPU>::accumulate(
 }
 
 template <class Parameters>
-template <class Configuration>
+template <class Configuration, typename RealIn>
 float TpAccumulator<Parameters, linalg::CPU>::computeM(
-    const std::array<linalg::Matrix<double, linalg::CPU>, 2>& M_pair,
+    const std::array<linalg::Matrix<RealIn, linalg::CPU>, 2>& M_pair,
     const std::array<Configuration, 2>& configs) {
   float flops = 0.;
 
