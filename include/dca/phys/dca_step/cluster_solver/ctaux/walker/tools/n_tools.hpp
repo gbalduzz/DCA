@@ -118,7 +118,7 @@ private:
   dca::linalg::Matrix<Real, device_t> N_new_spins;
   dca::linalg::Matrix<Real, device_t> G0_times_exp_V_minus_one;
 
-  std::shared_ptr<std::array<linalg::Matrix<Real, device_t>, 4>> workspace_ptr_;
+  std::shared_ptr<std::array<linalg::Matrix<__half, device_t>, 4>> workspace_ptr_;
   constexpr static bool use_tensor_cores = config::McOptions::use_tensor_cores;
 };
 
@@ -171,7 +171,9 @@ N_TOOLS<device_t, Parameters, Real>::N_TOOLS(int id, Parameters& parameters_ref,
       G0_times_exp_V_minus_one(
           "G0_times_exp_V_minus_one (N_TOOLS)", std::pair<int, int>(0, 0),
           std::pair<int, int>(MAX_VERTEX_SINGLETS * parameters.get_max_submatrix_size(),
-                              parameters.get_initial_matrix_size())) {}
+                              parameters.get_initial_matrix_size())),
+
+      workspace_ptr_(std::make_shared<std::array<linalg::Matrix<__half, device_t>, 4>>()) {}
 
 template <dca::linalg::DeviceType device_t, typename Parameters, typename Real>
 double N_TOOLS<device_t, Parameters, Real>::get_Gflop() {
@@ -402,14 +404,14 @@ void N_TOOLS<device_t, Parameters, Real>::rebuild_N_matrix_via_Gamma_LU(
     GFLOP += 2. * double(Gamma_size) * double(Gamma_size) * double(configuration_size) * (1.e-9);
   }
 
-  {  // do N - G*Gamma_inv_times_N_new_spins --> N  || DGEMM --> work-horsegg
-    // profiler_t profiler(concurrency, "(d) dgemm", __FUNCTION__, __LINE__, true);
+  if constexpr (use_tensor_cores)
+    linalg::blas::tensorcoreGemm(Real(-1), G, N_new_spins, *workspace_ptr_, Real(1), N, thread_id,
+                                 stream_id);
+  else
+    linalg::matrixop::gemm(Real(-1.), G, N_new_spins, Real(1.), N, thread_id, stream_id);
 
-    dca::linalg::matrixop::gemm(Real(-1.), G, N_new_spins, Real(1.), N, thread_id, stream_id);
-
-    GFLOP +=
-        2. * double(configuration_size) * double(Gamma_size) * double(configuration_size) * (1.e-9);
-  }
+  GFLOP +=
+      2. * double(configuration_size) * double(Gamma_size) * double(configuration_size) * (1.e-9);
 
   {  // do N*D_i --> N ( = final N !)
      // profiler_t profiler(concurrency, "(e) rescale", __FUNCTION__, __LINE__, true);

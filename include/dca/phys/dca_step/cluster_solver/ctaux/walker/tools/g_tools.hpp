@@ -12,14 +12,16 @@
 #ifndef DCA_PHYS_DCA_STEP_CLUSTER_SOLVER_CTAUX_WALKER_TOOLS_G_TOOLS_HPP
 #define DCA_PHYS_DCA_STEP_CLUSTER_SOLVER_CTAUX_WALKER_TOOLS_G_TOOLS_HPP
 
+#include <array>
 #include <cassert>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <utility>
 #include <vector>
 
+#include "dca/config/mc_options.hpp"
 #include "dca/linalg/linalg.hpp"
-#include "dca/linalg/matrix_view.hpp"
 #include "dca/phys/dca_step/cluster_solver/ctaux/structs/cv.hpp"
 #include "dca/phys/dca_step/cluster_solver/ctaux/structs/vertex_singleton.hpp"
 #include "dca/phys/dca_step/cluster_solver/ctaux/walker/tools/g_matrix_tools/g_matrix_tools.hpp"
@@ -93,6 +95,9 @@ private:
   concurrency_type& concurrency;
 
   CV<Parameters>& CV_obj;
+
+  std::shared_ptr<std::array<linalg::Matrix<__half, device_t>, 4>> workspace_ptr_;
+  constexpr static bool use_tensor_cores = config::McOptions::use_tensor_cores;
 };
 
 template <dca::linalg::DeviceType device_t, class Parameters, typename Real>
@@ -108,7 +113,9 @@ G_TOOLS<device_t, Parameters, Real>::G_TOOLS(int id, Parameters& parameters_ref,
       parameters(parameters_ref),
       concurrency(parameters.get_concurrency()),
 
-      CV_obj(CV_obj_ref) {}
+      CV_obj(CV_obj_ref),
+
+      workspace_ptr_(std::make_shared<std::array<linalg::Matrix<__half, device_t>, 4>>()) {}
 
 template <dca::linalg::DeviceType device_t, class Parameters, typename Real>
 double G_TOOLS<device_t, Parameters, Real>::get_Gflop() {
@@ -152,21 +159,18 @@ void G_TOOLS<device_t, Parameters, Real>::build_G_matrix(
   }
 
   if (N.size().first > 0 && vertex_index < configuration_e_spin.size()) {
-    int m = N.size().first;
-    int k = G0.size().first;
-    int n = G.size().second;
-
-#ifdef DCA_WITH_AUTOTUNING
-    std::stringstream ss;
-    ss << "GEMM_1_" << int(m / 16) * 16 + 8 << "_" << int(k / 16) * 16 + 8 << "_" << n;
-    profiler_t profiler_2(ss.str().c_str(), __FILE__, __LINE__);
-#endif  // DCA_WITH_AUTOTUNING
-
     const auto G0_right = linalg::makeViewFromConst(G0, 0, int(vertex_index));
-    dca::linalg::matrixop::gemm(N, G0_right, G, thread_id, stream_id);
 
+    if constexpr (use_tensor_cores) {
+      const auto N_view = linalg::makeViewFromConst(N);
+      linalg::blas::tensorcoreGemm(N_view, G0_right, *workspace_ptr_, G, thread_id,
+                                   stream_id);
+    }
+    else {
+      linalg::matrixop::gemm(N, G0_right, G, thread_id, stream_id);
+    }
 
-    GFLOP += 2. * double(m) * double(n) * double(k) * (1.e-9);
+    GFLOP += 2. * G.nrCols() * G.nrRows() * N.nrCols() * 1.e-9;
   }
 }
 

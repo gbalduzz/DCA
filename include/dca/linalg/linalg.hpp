@@ -49,6 +49,7 @@
 #include "dca/linalg/util/util_lapack.hpp"
 #include "dca/linalg/util/util_matrixop.hpp"
 #ifdef DCA_HAVE_CUDA
+#include "dca/linalg/blas/tensorcore_gemm.hpp"
 #include "dca/linalg/util/cast_cuda.hpp"
 #include "dca/linalg/util/error_cublas.hpp"
 #include "dca/linalg/util/error_cuda.hpp"
