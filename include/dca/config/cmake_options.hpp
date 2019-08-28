@@ -42,6 +42,7 @@ struct CMakeOptions {
   static const std::string dca_with_gnuplot;
   static const std::string dca_with_single_precision_mc;
   static const std::string dca_with_single_precision_tp_measurements;
+  static const std::string dca_with_tensor_cores;
   static const std::string dca_with_memory_savings;
   static const std::string dca_with_managed_memory;
 

@@ -268,12 +268,14 @@ else()
 endif()
 
 option(DCA_WITH_SINGLE_PRECISION_MC "Perform Monte Carlo and measurements in single precision." OFF)
+option(DCA_WITH_TENSOR_CORES "Use tensorcores to accelerate sinle precision MC solver." OFF)
 option(DCA_WITH_SINGLE_PRECISION_TP_MEASUREMENTS "Measure two particle function in single precision." OFF)
 
 if (DCA_WITH_SINGLE_PRECISION_MC)
-  set(DCA_WITH_SINGLE_PRECISION_TP_MEASUREMENTS ON CACHE BOOL "Measure two particle function in single precision." FORCE)
+  set(DCA_WITH_SINGLE_PRECISION_TP_MEASUREMENTS ON CACHE BOOL "" FORCE)
   set(MC_SCALAR float)
 else()
+  set(DCA_WITH_TENSOR_CORES OFF CACHE BOOL "" FORCE)
   set(MC_SCALAR double)
 endif()
 
@@ -282,6 +284,13 @@ if (DCA_WITH_SINGLE_PRECISION_TP_MEASUREMENTS)
 else()
   set(TP_ACCUMULATION_SCALAR double)
 endif()
+
+if (DCA_WITH_TENSOR_CORES)
+  set(USE_TENSOR_CORES true)
+else()
+  set(USE_TENSOR_CORES false)
+endif()
+
 
 
 option(DCA_WITH_MANAGED_MEMORY "Use managed memory allocator." OFF)

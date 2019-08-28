@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "dca/linalg/linalg.hpp"
+#include "dca/linalg/matrix_view.hpp"
 #include "dca/phys/dca_step/cluster_solver/ctaux/structs/cv.hpp"
 #include "dca/phys/dca_step/cluster_solver/ctaux/structs/vertex_singleton.hpp"
 #include "dca/phys/dca_step/cluster_solver/ctaux/walker/tools/g_matrix_tools/g_matrix_tools.hpp"
@@ -155,19 +156,15 @@ void G_TOOLS<device_t, Parameters, Real>::build_G_matrix(
     int k = G0.size().first;
     int n = G.size().second;
 
-    int LD_N = N.leadingDimension();
-    int LD_G0 = G0.leadingDimension();
-    int LD_G = G.leadingDimension();
-
 #ifdef DCA_WITH_AUTOTUNING
     std::stringstream ss;
     ss << "GEMM_1_" << int(m / 16) * 16 + 8 << "_" << int(k / 16) * 16 + 8 << "_" << n;
     profiler_t profiler_2(ss.str().c_str(), __FILE__, __LINE__);
 #endif  // DCA_WITH_AUTOTUNING
 
-    dca::linalg::blas::UseDevice<device_t>::gemm("N", "N", m, n, k, Real(1.), N.ptr(0, 0), LD_N,
-                                                 G0.ptr(0, vertex_index), LD_G0, Real(0.),
-                                                 G.ptr(0, 0), LD_G, thread_id, stream_id);
+    const auto G0_right = linalg::makeViewFromConst(G0, 0, int(vertex_index));
+    dca::linalg::matrixop::gemm(N, G0_right, G, thread_id, stream_id);
+
 
     GFLOP += 2. * double(m) * double(n) * double(k) * (1.e-9);
   }

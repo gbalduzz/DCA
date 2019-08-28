@@ -21,6 +21,7 @@
 #include <cuda_fp16.h>
 
 #include "dca/linalg/matrix.hpp"
+#include "dca/linalg/matrix_view.hpp"
 
 namespace dca {
 namespace linalg {
@@ -28,12 +29,12 @@ namespace blas {
 // dca::linalg::blas::
 
 // TODO: create in place version maybe?
-void tensorcoreGemm(float alpha, const Matrix<float, GPU>& a, const Matrix<float, GPU>& b,
+void tensorcoreGemm(float alpha, const MatrixView<float, GPU>& a, const MatrixView<float, GPU>& b,
                     std::array<Matrix<__half, GPU>, 4>& workspace, float beta,
-                    Matrix<float, GPU>& c, int thread_id = 0, int stream_id = 0);
+                    MatrixView<float, GPU> c, int thread_id = 0, int stream_id = 0);
 
-inline void tensorcoreGemm(const Matrix<float, GPU>& a, const Matrix<float, GPU>& b,
-                           std::array<Matrix<__half, GPU>, 4>& workspace, Matrix<float, GPU>& c,
+inline void tensorcoreGemm(const MatrixView<float, GPU>& a, const MatrixView<float, GPU>& b,
+                           std::array<Matrix<__half, GPU>, 4>& workspace, MatrixView<float, GPU> c,
                            int thread_id = 0, int stream_id = 0) {
   return tensorcoreGemm(1., a, b, workspace, 0., c, thread_id, stream_id);
 }

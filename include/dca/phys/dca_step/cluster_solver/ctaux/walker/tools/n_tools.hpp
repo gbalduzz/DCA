@@ -36,9 +36,14 @@
 #include <vector>
 
 #include "dca/linalg/linalg.hpp"
+#include "dca/linalg/matrixop.hpp"
+#include "dca/linalg/matrix_view.hpp"
 #include "dca/phys/dca_step/cluster_solver/ctaux/structs/cv.hpp"
 #include "dca/phys/dca_step/cluster_solver/ctaux/structs/vertex_singleton.hpp"
 #include "dca/phys/dca_step/cluster_solver/ctaux/walker/tools/n_matrix_tools/n_matrix_tools.hpp"
+#ifdef DCA_HAVE_CUDA
+#include "dca/linalg/blas/tensorcore_gemm.hpp"
+#endif  // DCA_HAVE_CUDA
 
 namespace dca {
 namespace phys {
@@ -112,6 +117,9 @@ private:
   dca::linalg::Matrix<Real, device_t> G;
   dca::linalg::Matrix<Real, device_t> N_new_spins;
   dca::linalg::Matrix<Real, device_t> G0_times_exp_V_minus_one;
+
+  std::shared_ptr<std::array<linalg::Matrix<Real, device_t>, 4>> workspace_ptr_;
+  constexpr static bool use_tensor_cores = config::McOptions::use_tensor_cores;
 };
 
 template <dca::linalg::DeviceType device_t, typename Parameters, typename Real>
@@ -283,8 +291,8 @@ void N_TOOLS<device_t, Parameters, Real>::update_N_matrix(configuration_type& co
     assert(N_r == N_c);
     dca::linalg::lapack::UseDevice<device_t>::laset(i, N_c - i, Real(0.), Real(0.), N.ptr(0, i), LD,
                                                     thread_id, stream_id);
-    dca::linalg::lapack::UseDevice<device_t>::laset(N_r - i, N_c - i, Real(0.), Real(1.), N.ptr(i, i), LD,
-                                                    thread_id, stream_id);
+    dca::linalg::lapack::UseDevice<device_t>::laset(N_r - i, N_c - i, Real(0.), Real(1.),
+                                                    N.ptr(i, i), LD, thread_id, stream_id);
   }
 
   if (first_shuffled_vertex_index == configuration_size || first_non_interacting_vertex_index == 0)
@@ -314,22 +322,25 @@ void N_TOOLS<device_t, Parameters, Real>::update_N_matrix(configuration_type& co
         G0_times_exp_V_minus_one.leadingDimension(), thread_id, stream_id);
   }
 
-  {  // G0_exp_V_minus_one * N
-    // profiler_t profiler(concurrency, "(c) GEMM", __FUNCTION__, __LINE__, true);
+  // G0_exp_V_minus_one * N
 
-    int m = configuration_size - first_shuffled_vertex_index;
-    int k = first_non_interacting_vertex_index;
-    int n = first_non_interacting_vertex_index;
+  const int m = configuration_size - first_shuffled_vertex_index;
+  const int k = first_non_interacting_vertex_index;
+  const int n = first_non_interacting_vertex_index;
 
-    int LD_G0 = G0_times_exp_V_minus_one.leadingDimension();
-    int LD_N = N.leadingDimension();
+  using MatrixView = linalg::MatrixView<Real, device_t>;
+  MatrixView N_body(N, 0, 0, k, n);
+  MatrixView N_bottom(N, first_shuffled_vertex_index, 0, m, n);
 
-    dca::linalg::blas::UseDevice<device_t>::gemm(
-        "N", "N", m, n, k, Real(1.), G0_times_exp_V_minus_one.ptr(), LD_G0, N.ptr(), LD_N, Real(0.),
-        &N.ptr()[first_shuffled_vertex_index], LD_N, thread_id, stream_id);
-
-    GFLOP += 2. * double(m) * double(k) * double(n) * (1.e-9);
+  if constexpr (use_tensor_cores) {
+    linalg::blas::tensorcoreGemm(G0_times_exp_V_minus_one, N_body, *workspace_ptr_, N_bottom,
+                                 thread_id, stream_id);
   }
+  else {
+    linalg::matrixop::gemm(G0_times_exp_V_minus_one, N_body, N_bottom, thread_id, stream_id);
+  }
+
+  GFLOP += 2. * m * n * k * 1.e-9;
 }
 
 template <dca::linalg::DeviceType device_t, typename Parameters, typename Real>

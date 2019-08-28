@@ -26,6 +26,8 @@ struct McOptions {
 
   using TPAccumulationScalar = @TP_ACCUMULATION_SCALAR@;
 
+  static constexpr bool use_tensor_cores = @USE_TENSOR_CORES@;
+
   static constexpr bool memory_savings = @MEMORY_SAVINGS@;
 
 #ifdef DCA_HAVE_CUDA

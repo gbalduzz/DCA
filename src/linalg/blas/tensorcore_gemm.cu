@@ -16,7 +16,6 @@
 
 #include "dca/linalg/util/handle_functions.hpp"
 #include "dca/linalg/util/stream_functions.hpp"
-#include "dca/linalg/matrixop.hpp"
 #include "dca/util/integer_division.hpp"
 
 namespace dca {
@@ -27,28 +26,27 @@ namespace kernel {
 
 // Inverse transform of fp32_in[:] = fp16_out1[:] / scale1 + fp16_out2[:] / scale2
 // TODO: multiply here and divide later.
-void __global__ split(const int rows, const int cols, const float* fp32_in, const int ld_in,
-                      const float scale, const float scale2, __half* fp16_out1, __half* fp16_out2,
-                      const int ld_out) {
+void __global__ split(const MatrixView<float, GPU> fp32_in, const float scale, const float scale2,
+                      MatrixView<__half, GPU> fp16_out1, MatrixView<__half, GPU> fp16_out2) {
   const int i = threadIdx.x + blockDim.x * blockIdx.x;
   const int j = threadIdx.y + blockDim.y * blockIdx.y;
-  if (i >= rows || j >= cols)
+  if (i >= fp32_in.nrRows() || j >= fp32_in.nrCols())
     return;
 
-  const float original = fp32_in[i + ld_in * j];
+  const float original = fp32_in(i, j);
   const __half high = __float2half(original / scale);
-  fp16_out1[i + ld_out * j] = high;
+  fp16_out1(i, j) = high;
 
   const float diff = original - __half2float(high);
   const __half low = __float2half(diff * scale / scale2);
-  fp16_out2[i + ld_out * j] = low;
+  fp16_out2(i, j) = low;
 }
 }  // namespace kernel
 // dca::linalg::blas::
 
-void tensorcoreGemm(const float alpha, const Matrix<float, GPU>& a, const Matrix<float, GPU>& b,
-                    std::array<Matrix<__half, GPU>, 4>& workspace, const float beta,
-                    Matrix<float, GPU>& c, int thread_id, int stream_id) {
+void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
+                    const MatrixView<float, GPU>& b, std::array<Matrix<__half, GPU>, 4>& workspace,
+                    const float beta, MatrixView<float, GPU> c, int thread_id, int stream_id) {
   assert(a.nrCols() == b.nrRows());
   assert(a.nrRows() == c.nrRows());
   assert(b.nrCols() == c.nrCols());
@@ -65,9 +63,7 @@ void tensorcoreGemm(const float alpha, const Matrix<float, GPU>& a, const Matrix
     low.resizeNoCopy(m.size());
 
     dim3 blocks(ceilDiv(m.nrRows(), int(threads.x)), ceilDiv(m.nrCols(), int(threads.y)));
-    kernel::split<<<blocks, threads, 0, stream>>>(m.nrRows(), m.nrCols(), m.ptr(),
-                                                  m.leadingDimension(), scale1, scale2, high.ptr(),
-                                                  low.ptr(), high.leadingDimension());
+    kernel::split<<<blocks, threads, 0, stream>>>(m, scale1, scale2, high, low);
   };
 
   auto& a_high = workspace[0];
