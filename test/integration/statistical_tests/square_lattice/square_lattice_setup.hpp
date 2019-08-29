@@ -18,6 +18,7 @@
 
 #include "gtest/gtest.h"
 
+#include "dca/config/walker_device.hpp"
 #include "dca/phys/dca_data/dca_data.hpp"
 #include "dca/phys/dca_loop/dca_loop_data.hpp"
 #include "dca/phys/dca_step/cluster_solver/ctaux/ctaux_cluster_solver.hpp"
@@ -54,7 +55,7 @@ using ParametersType =
                                   RandomNumberGenerator, dca::phys::solver::CT_AUX>;
 using DcaData = dca::phys::DcaData<ParametersType>;
 using QuantumClusterSolver =
-    dca::phys::solver::CtauxClusterSolver<dca::linalg::CPU, ParametersType, DcaData>;
+    dca::phys::solver::CtauxClusterSolver<walker_device, ParametersType, DcaData>;
 using ThreadedSolver = dca::phys::solver::StdThreadQmciClusterSolver<QuantumClusterSolver>;
 
 using SigmaCutDomain = dca::math::util::SigmaCutDomain<dca::math::util::details::Kdmn>;
@@ -62,7 +63,7 @@ using SigmaDomain = dca::math::util::SigmaDomain<dca::math::util::details::Kdmn>
 using CovarianceDomain = dca::math::util::CovarianceDomain<dca::math::util::details::Kdmn>;
 using dca::math::util::cutFrequency;
 
-}  // testing
-}  // dca
+}  // namespace testing
+}  // namespace dca
 
 #endif  // DCA_TEST_INTEGRATION_STATISTICAL_TESTS_SQUARE_LATTICE_SQUARE_LATTICE_SETUP_HPP
