@@ -499,8 +499,10 @@ std::pair<int, int> Matrix<ScalarType, device_name>::capacityMultipleOfBlockSize
   assert(size.first >= 0);
   assert(size.second >= 0);
 
+  auto padd = [](int size, int to){return (size + to - 1) / to * to;};
+
   auto get_new_size = [=](const int size) {
-    return size <= 16 ? size : (size + block_size_ - 1) / block_size_ * block_size_;
+    return size <= 16 ? padd(size, 4) : padd(size, block_size_);
   };
 
   size.first = get_new_size(size.first);

@@ -6,6 +6,7 @@
 // See CITATION.md for citation guidelines, if DCA++ is used for scientific publications.
 //
 // Author: Raffaele Solca' (rasolca@itp.phys.ethz.ch)
+//         Giovanni Balduzzi (gbalduzz@itp.phys.ethz.ch)
 //
 // This file tests the Matrix<CPU> class.
 
@@ -511,17 +512,18 @@ TEST(MatrixCPUTest, ResizeValue) {
     testing::setMatrixElements(mat, el_value);
 
     // Resize to capacity. No reallocation has to take place.
-    auto old_ptr = mat.ptr();
-    auto capacity = mat.capacity();
-    int new_size = std::min(capacity.first, capacity.second);
+    const auto old_ptr = mat.ptr();
+    const auto old_size = mat.size();
+    const auto capacity = mat.capacity();
+    const int new_size = std::min(capacity.first, capacity.second);
     mat.resize(new_size);
     EXPECT_EQ(std::make_pair(new_size, new_size), mat.size());
     EXPECT_EQ(capacity, mat.capacity());
     EXPECT_EQ(old_ptr, mat.ptr());
 
     // Check the value of the elements.
-    for (int j = 0; j < mat.nrCols(); ++j)
-      for (int i = 0; i < mat.nrRows(); ++i) {
+    for (int j = 0; j < std::min(mat.nrCols(), old_size.second); ++j)
+      for (int i = 0; i < std::min(mat.nrRows(), old_size.first); ++i) {
         long el = el_value(i, j);
         EXPECT_EQ(el, mat(i, j));
       }

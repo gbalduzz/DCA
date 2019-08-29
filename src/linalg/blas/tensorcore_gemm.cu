@@ -24,22 +24,26 @@ namespace blas {
 namespace kernel {
 // dca::linalg::blas::kernel::
 
-// Inverse transform of fp32_in[:] = fp16_out1[:] / scale1 + fp16_out2[:] / scale2
+// Inverse transform of fp32_in[:] = fp16_high[:] / scale1 + fp16_low[:] / scale2
 // TODO: multiply here and divide later.
 void __global__ split(const MatrixView<float, GPU> fp32_in, const float scale, const float scale2,
-                      MatrixView<__half, GPU> fp16_out1, MatrixView<__half, GPU> fp16_out2) {
+                      MatrixView<__half, GPU> fp16_high, MatrixView<__half, GPU> fp16_low) {
   const int i = threadIdx.x + blockDim.x * blockIdx.x;
   const int j = threadIdx.y + blockDim.y * blockIdx.y;
-  if (i >= fp32_in.nrRows() || j >= fp32_in.nrCols())
+  if (i >= fp16_high.nrRows() || j >= fp16_high.nrCols())
     return;
+  if (i >= fp32_in.nrRows() || j >= fp32_in.nrCols()) {  // padding area.
+    fp16_high(i, j) = fp16_low(i, j) = 0;
+    return;
+  }
 
   const float original = fp32_in(i, j);
   const __half high = __float2half(original / scale);
-  fp16_out1(i, j) = high;
+  fp16_high(i, j) = high;
 
   const float diff = original - __half2float(high);
   const __half low = __float2half(diff * scale / scale2);
-  fp16_out2(i, j) = low;
+  fp16_low(i, j) = low;
 }
 }  // namespace kernel
 // dca::linalg::blas::
@@ -58,11 +62,13 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
   using dca::util::ceilDiv;
   auto stream = util::getStream(thread_id, stream_id);
 
-  auto split = [&](const auto& m, auto& high, auto& low) {
-    high.resizeNoCopy(m.size());
-    low.resizeNoCopy(m.size());
+  auto padd = [](int size, int to) { return (size + to - 1) / to * to; };
 
-    dim3 blocks(ceilDiv(m.nrRows(), int(threads.x)), ceilDiv(m.nrCols(), int(threads.y)));
+  auto split = [&](const auto& m, auto& high, auto& low, int padx, int pady) {
+    high.resizeNoCopy(std::make_pair(padd(m.nrRows(), padx), padd(m.nrCols(), pady)));
+    low.resizeNoCopy(high.size());
+
+    dim3 blocks(ceilDiv(high.nrRows(), int(threads.x)), ceilDiv(high.nrCols(), int(threads.y)));
     kernel::split<<<blocks, threads, 0, stream>>>(m, scale1, scale2, high, low);
   };
 
@@ -71,13 +77,16 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
   auto& b_high = workspace[2];
   auto& b_low = workspace[3];
 
-  split(a, a_high, a_low);
-  split(b, b_high, b_low);
+  split(a, a_high, a_low, 4, 8);
+  split(b, b_high, b_low, 8, 1);
 
   auto handle = util::getHandle(thread_id, stream_id);
-  const int m = c.nrRows();
-  const int n = c.nrCols();
+  const int m = a.nrRows();
+  const int n = b.nrCols();
   const int k = a.nrCols();
+
+  assert(m % 4 == 0);
+  assert(k % 8 == 0);
 
   auto multiply = [&](float alpha, const auto& a, const auto& b, float beta, auto& c) {
     auto err = cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, a.ptr(), CUDA_R_16F,
