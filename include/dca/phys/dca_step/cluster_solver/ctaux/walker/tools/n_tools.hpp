@@ -86,6 +86,10 @@ public:
                       dca::linalg::Matrix<Real, device_t>& N,
                       dca::linalg::Matrix<Real, device_t>& Gamma, e_spin_states_type e_spin);
 
+  void set_workspace(std::shared_ptr<std::array<linalg::Matrix<__half, device_t>, 4>> ptr){
+      workspace_ptr_ = ptr;
+  }
+
   int deviceFingerprint() const {
     return G.deviceFingerprint() + N_new_spins.deviceFingerprint() +
            G0_times_exp_V_minus_one.deviceFingerprint();

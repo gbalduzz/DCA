@@ -75,6 +75,10 @@ public:
                                 dca::linalg::Matrix<Real, device_t>& G_precomputed,
                                 Real* result_ptr, int incr);
 
+  void set_workspace(std::shared_ptr<std::array<linalg::Matrix<__half, device_t>, 4>> ptr) {
+    workspace_ptr_ = ptr;
+  }
+
 private:
   double compute_G_vertex_to_old_vertex(int configuration_e_spin_index_i,
                                         int configuration_e_spin_index_j,
@@ -163,8 +167,7 @@ void G_TOOLS<device_t, Parameters, Real>::build_G_matrix(
 
     if constexpr (use_tensor_cores) {
       const auto N_view = linalg::makeViewFromConst(N);
-      linalg::blas::tensorcoreGemm(N_view, G0_right, *workspace_ptr_, G, thread_id,
-                                   stream_id);
+      linalg::blas::tensorcoreGemm(N_view, G0_right, *workspace_ptr_, G, thread_id, stream_id);
     }
     else {
       linalg::matrixop::gemm(N, G0_right, G, thread_id, stream_id);

@@ -104,12 +104,15 @@ public:
   void printSummary() const;
 
   std::size_t deviceFingerprint() const {
-    if (device_t == linalg::GPU)
-      return G0_tools_obj.deviceFingerprint() + N_tools_obj.deviceFingerprint() +
+    std::size_t res = 0;
+    if (device_t == linalg::GPU) {
+      res += G0_tools_obj.deviceFingerprint() + N_tools_obj.deviceFingerprint() +
              SHRINK_tools_obj.deviceFingerprint() +
              CtauxWalkerData<device_t, Parameters, Real>::deviceFingerprint();
-    else
-      return 0;
+      for (const auto& w : *workspace_ptr_)
+        res += w.deviceFingerprint();
+    }
+    return res;
   }
 
 private:
@@ -283,8 +286,10 @@ private:
   std::array<linalg::Vector<Real, device_t>, 2> exp_v_minus_one_dev_;
   std::array<linalg::util::CudaEvent, 2> m_computed_events_;
 
+  std::shared_ptr<std::array<linalg::Matrix<__half, device_t>, 4>> workspace_ptr_;
+
   bool config_initialized_;
-};
+};  // namespace ctaux
 
 template <dca::linalg::DeviceType device_t, class Parameters, class Data, typename Real>
 CtauxWalker<device_t, Parameters, Data, Real>::CtauxWalker(Parameters& parameters_ref,
@@ -339,7 +344,12 @@ CtauxWalker<device_t, Parameters, Data, Real>::CtauxWalker(Parameters& parameter
       warm_up_expansion_order_(),
       num_delayed_spins_(),
 
-      config_initialized_(false) {
+      workspace_ptr_(std::make_shared<std::array<linalg::Matrix<__half, device_t>, 4>>()),
+
+      config_initialized_(false){
+  N_tools_obj.set_workspace(workspace_ptr_);
+  G_tools_obj.set_workspace(workspace_ptr_);
+
   if (concurrency.id() == 0 and thread_id == 0) {
     std::cout << "\n\n"
               << "\t\t"
