@@ -14,6 +14,7 @@
 
 #include <cublas_v2.h>
 
+#include "dca/config/mc_options.hpp"
 #include "dca/linalg/util/error_cublas.hpp"
 
 namespace dca {
@@ -25,6 +26,8 @@ class CublasHandle {
 public:
   CublasHandle() {
     cublasStatus_t ret = cublasCreate(&handle_);
+    if(config::McOptions::use_tensor_cores)
+        cublasSetMathMode(handle_, CUBLAS_TENSOR_OP_MATH);
     checkRC(ret);
   }
 
@@ -52,8 +55,8 @@ private:
   cublasHandle_t handle_ = nullptr;
 };
 
-}  // util
-}  // linalg
-}  // dca
+}  // namespace util
+}  // namespace linalg
+}  // namespace dca
 
 #endif  // DCA_LINALG_UTIL_CUBLAS_HANDLE_HPP
