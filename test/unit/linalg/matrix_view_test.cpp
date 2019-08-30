@@ -66,14 +66,21 @@ TEST(MatrixViewTest, ReadWrite) {
   EXPECT_DEBUG_DEATH(view(0, 4), "Assertion.");
 }
 
-TEST(MatrixViewTest, MakeConstantView) {
+TEST(MatrixViewTest, MakeViewFromConst) {
   dca::linalg::Matrix<double, dca::linalg::CPU> mat(std::make_pair(4, 2));
   auto init_func = [](int i, int j) { return j + 10. * i; };
   testing::setMatrixElements(mat, init_func);
+
+  {
+    // WARNING: making a non const view from a const matrix is possible. Please don't do it.
+    const dca::linalg::Matrix<double, dca::linalg::CPU> const_mat(3);
+    auto non_const_view = dca::linalg::makeViewFromConst(const_mat);
+    non_const_view(1, 1) = 1.;
+    EXPECT_EQ(1., const_mat(1, 1));
+  }
   {
     const dca::linalg::Matrix<double, dca::linalg::CPU> const_mat(mat);
-    auto const_view_ptr = dca::linalg::makeConstantView(const_mat);
-    const auto& const_view = *const_view_ptr;
+    const auto const_view = dca::linalg::makeViewFromConst(const_mat);
     EXPECT_EQ(const_mat.nrRows(), const_view.nrRows());
     EXPECT_EQ(const_mat.nrCols(), const_view.nrCols());
     EXPECT_EQ(const_mat.ptr(), const_view.ptr());
@@ -85,8 +92,7 @@ TEST(MatrixViewTest, MakeConstantView) {
   }
   {
     const dca::linalg::Matrix<double, dca::linalg::CPU> const_mat(mat);
-    auto const_view_ptr = dca::linalg::makeConstantView(const_mat, 1, 0);
-    const auto& const_view = *const_view_ptr;
+    auto const_view = dca::linalg::makeViewFromConst(const_mat, 1, 0);
     EXPECT_EQ(const_mat.nrRows() - 1, const_view.nrRows());
     EXPECT_EQ(const_mat.nrCols(), const_view.nrCols());
     EXPECT_EQ(const_mat.ptr(1, 0), const_view.ptr());
@@ -98,8 +104,7 @@ TEST(MatrixViewTest, MakeConstantView) {
   }
   {
     const dca::linalg::Matrix<double, dca::linalg::CPU> const_mat(mat);
-    auto const_view_ptr = dca::linalg::makeConstantView(const_mat, 0, 1, 2, 1);
-    const auto& const_view = *const_view_ptr;
+    auto const_view = dca::linalg::makeViewFromConst(const_mat, 0, 1, 2, 1);
     EXPECT_EQ(2, const_view.nrRows());
     EXPECT_EQ(1, const_view.nrCols());
     EXPECT_EQ(const_mat.ptr(0, 1), const_view.ptr());
