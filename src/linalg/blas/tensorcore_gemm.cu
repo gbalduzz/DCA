@@ -77,15 +77,16 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
   auto& b_high = workspace[2];
   auto& b_low = workspace[3];
 
-  split(a, a_high, a_low, 4, 8);
-  split(b, b_high, b_low, 8, 1);
+  split(a, a_high, a_low, 8, 8);
+  split(b, b_high, b_low, 8, 8);
 
   auto handle = util::getHandle(thread_id, stream_id);
   const int m = a.nrRows();
   const int n = b.nrCols();
   const int k = a.nrCols();
 
-  assert(m % 4 == 0);
+  assert(n % 8 == 0);
+  assert(m % 8 == 0);
   assert(k % 8 == 0);
 
   auto multiply = [&](float alpha, const auto& a, const auto& b, float beta, auto& c) {
