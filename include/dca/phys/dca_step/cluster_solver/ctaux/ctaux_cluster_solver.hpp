@@ -49,7 +49,7 @@ namespace solver {
 
 template <dca::linalg::DeviceType device_t, class Parameters, class Data>
 class CtauxClusterSolver {
-protected:
+public:
   using DataType = Data;
   using ParametersType = Parameters;
 
