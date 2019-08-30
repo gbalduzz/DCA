@@ -113,20 +113,20 @@ public:
   // equal time-measurements
   // TODO: Make equal time getters const.
   func::function<Real, func::dmn_variadic<nu, nu, r_dmn_t, t>>& get_G_r_t() {
-    return equal_time_accumulator_.get_G_r_t();
+    return equal_time_accumulator_ptr_->get_G_r_t();
   }
   func::function<Real, func::dmn_variadic<nu, nu, r_dmn_t, t>>& get_G_r_t_stddev() {
-    return equal_time_accumulator_.get_G_r_t_stddev();
+    return equal_time_accumulator_ptr_->get_G_r_t_stddev();
   }
 
   func::function<Real, func::dmn_variadic<b, r_dmn_t>>& get_charge_cluster_moment() {
-    return equal_time_accumulator_.get_charge_cluster_moment();
+    return equal_time_accumulator_ptr_->get_charge_cluster_moment();
   }
   func::function<Real, func::dmn_variadic<b, r_dmn_t>>& get_magnetic_cluster_moment() {
-    return equal_time_accumulator_.get_magnetic_cluster_moment();
+    return equal_time_accumulator_ptr_->get_magnetic_cluster_moment();
   }
   func::function<Real, func::dmn_variadic<b, r_dmn_t>>& get_dwave_pp_correlator() {
-    return equal_time_accumulator_.get_dwave_pp_correlator();
+    return equal_time_accumulator_ptr_->get_dwave_pp_correlator();
   }
 
   // sp-measurements
@@ -201,7 +201,7 @@ protected:
 
   accumulator::SpAccumulator<Parameters, device_t, Real> single_particle_accumulator_obj;
 
-  ctaux::TpEqualTimeAccumulator<Parameters, Data, Real> equal_time_accumulator_;
+  std::unique_ptr<ctaux::TpEqualTimeAccumulator<Parameters, Data, Real>> equal_time_accumulator_ptr_;
 
   accumulator::TpAccumulator<Parameters, device_t> two_particle_accumulator_;
 
@@ -229,8 +229,6 @@ CtauxAccumulator<device_t, Parameters, Data, Real>::CtauxAccumulator(Parameters&
 
       single_particle_accumulator_obj(parameters_, compute_std_deviation_),
 
-      equal_time_accumulator_(parameters_, data_, id),
-
       two_particle_accumulator_(data_.G0_k_w_cluster_excluded, parameters_) {}
 
 template <dca::linalg::DeviceType device_t, class Parameters, class Data, typename Real>
@@ -255,8 +253,13 @@ void CtauxAccumulator<device_t, Parameters, Data, Real>::initialize(int dca_iter
   if (perform_tp_accumulation_)
     two_particle_accumulator_.resetAccumulation(dca_iteration);
 
-  if (parameters_.additional_time_measurements())
-    equal_time_accumulator_.resetAccumulation();
+  if (dca_iteration == parameters_.get_dca_iterations() - 1 &&
+      parameters_.additional_time_measurements()) {
+    equal_time_accumulator_ptr_ =
+        std::make_unique<ctaux::TpEqualTimeAccumulator<Parameters, Data, Real>>(parameters_, data_,
+                                                                                thread_id);
+    equal_time_accumulator_ptr_->resetAccumulation();
+  }
 }
 
 template <dca::linalg::DeviceType device_t, class Parameters, class Data, typename Real>
@@ -278,7 +281,7 @@ void CtauxAccumulator<device_t, Parameters, Data, Real>::finalize() {
   }
 
   if (parameters_.additional_time_measurements())
-    equal_time_accumulator_.finalize();
+    equal_time_accumulator_ptr_->finalize();
 
   if (perform_tp_accumulation_)
     two_particle_accumulator_.finalize();
@@ -448,10 +451,10 @@ void CtauxAccumulator<device_t, Parameters, Data, Real>::accumulate_equal_time_q
 template <dca::linalg::DeviceType device_t, class Parameters, class Data, typename Real>
 void CtauxAccumulator<device_t, Parameters, Data, Real>::accumulate_equal_time_quantities(
     const std::array<linalg::Matrix<Real, linalg::CPU>, 2>& M) {
-  equal_time_accumulator_.accumulateAll(hs_configuration_[0], M[0], hs_configuration_[1], M[1],
-                                        current_sign);
+  equal_time_accumulator_ptr_->accumulateAll(hs_configuration_[0], M[0], hs_configuration_[1], M[1],
+                                             current_sign);
 
-  GFLOP += equal_time_accumulator_.get_GFLOP();
+  GFLOP += equal_time_accumulator_ptr_->get_GFLOP();
 }
 
 /*************************************************************
@@ -482,7 +485,7 @@ void CtauxAccumulator<device_t, Parameters, Data, Real>::sumTo(this_type& other)
   // equal time measurements
   if (DCA_iteration == parameters_.get_dca_iterations() - 1 &&
       parameters_.additional_time_measurements())
-    equal_time_accumulator_.sumTo(other.equal_time_accumulator_);
+    equal_time_accumulator_ptr_->sumTo(*other.equal_time_accumulator_ptr_);
 
   // tp-measurements
   if (perform_tp_accumulation_)
