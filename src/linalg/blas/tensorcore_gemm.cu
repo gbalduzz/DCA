@@ -13,6 +13,9 @@
 
 #include <iostream>
 #include <cublas_v2.h>
+#include <thrust/device_ptr.h>
+#include <thrust/reduce.h>
+#include <math_functions.h>
 
 #include "dca/linalg/util/handle_functions.hpp"
 #include "dca/linalg/util/stream_functions.hpp"
@@ -55,7 +58,12 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
   assert(a.nrRows() == c.nrRows());
   assert(b.nrCols() == c.nrCols());
 
-  const float scale1 = 1.;  // TODO: change
+  const float max_abs = thrust::reduce(
+      thrust::device_pointer_cast(a.ptr()),
+      thrust::device_pointer_cast(a.ptr() + a.leadingDimension() * a.nrCols()), 1.f,
+       [] __device__ __host__ (float a, float b) { return max(fabs(a), fabs(b)); });
+
+  const float scale1 = std::pow(2, int(std::ceil(std::log2(max_abs))));
   const float scale2 = scale1 * std::pow(2., -11);
 
   const dim3 threads(16, 16);
