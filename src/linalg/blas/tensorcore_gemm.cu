@@ -58,10 +58,10 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
   assert(a.nrRows() == c.nrRows());
   assert(b.nrCols() == c.nrCols());
 
-  const float max_abs = thrust::reduce(
-      thrust::device_pointer_cast(a.ptr()),
-      thrust::device_pointer_cast(a.ptr() + a.leadingDimension() * a.nrCols()), 1.f,
-       [] __device__ __host__ (float a, float b) { return max(fabs(a), fabs(b)); });
+  const float max_abs =
+      thrust::reduce(thrust::device_pointer_cast(a.ptr()),
+                     thrust::device_pointer_cast(a.ptr() + a.leadingDimension() * a.nrCols()), 1.f,
+                     [] __device__ __host__(float a, float b) { return max(fabs(a), fabs(b)); });
 
   const float scale1 = std::pow(2, int(std::ceil(std::log2(max_abs))));
   const float scale2 = scale1 * std::pow(2., -11);
@@ -89,15 +89,16 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
   split(b, b_high, b_low, 8, 8);
 
   auto handle = util::getHandle(thread_id, stream_id);
-  const int m = a.nrRows();
-  const int n = b.nrCols();
-  const int k = a.nrCols();
-
-  assert(n % 8 == 0);
-  assert(m % 8 == 0);
-  assert(k % 8 == 0);
 
   auto multiply = [&](float alpha, const auto& a, const auto& b, float beta, auto& c) {
+    const int m = a.nrRows();
+    const int n = b.nrCols();
+    const int k = a.nrCols();
+
+    assert(n % 8 == 0);
+    assert(m % 8 == 0);
+    assert(k % 8 == 0);
+
     auto err = cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, a.ptr(), CUDA_R_16F,
                             a.leadingDimension(), b.ptr(), CUDA_R_16F, b.leadingDimension(), &beta,
                             c.ptr(), CUDA_R_32F, c.leadingDimension(), CUDA_R_32F,
