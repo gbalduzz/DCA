@@ -58,10 +58,19 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
   assert(a.nrRows() == c.nrRows());
   assert(b.nrCols() == c.nrCols());
 
-  const float max_abs =
-      thrust::reduce(thrust::device_pointer_cast(a.ptr()),
-                     thrust::device_pointer_cast(a.ptr() + a.leadingDimension() * a.nrCols()), 1.f,
-                     [] __device__ __host__(float a, float b) { return max(fabs(a), fabs(b)); });
+  auto max_matrix = [](const MatrixView<float, GPU>& m) -> float {
+    float max_val = 0;
+    for (int j = 0; j < m.nrCols(); ++j) {
+      const float val =
+          thrust::reduce(thrust::device_pointer_cast(m.ptr(0, j)),
+                         thrust::device_pointer_cast(m.ptr(m.nrRows(), j)), 1.f,
+                         [] __device__ __host__(float a, float b) { return max(fabs(a), fabs(b)); });
+
+      max_val = std::max(val, max_val);
+    }
+    return max_val;
+  };
+  const float max_abs = std::max(max_matrix(a), max_matrix(b));
 
   const float scale1 = std::pow(2, int(std::ceil(std::log2(max_abs))));
   const float scale2 = scale1 * std::pow(2., -11);
