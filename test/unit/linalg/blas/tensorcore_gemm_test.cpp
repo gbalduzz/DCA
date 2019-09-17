@@ -62,12 +62,17 @@ TEST(TensorcoreGemmTest, RandomMatrix) {
 
 TEST(TensorcoreGemmTest, DCAMatrix) {
   Matrix<float, CPU> a("a"), b("b");
-  const std::string iname = DCA_SOURCE_DIR "/test/unit/linalg/blas/input_matrices.hdf5";
-
+  const std::string folder = DCA_SOURCE_DIR "/test/unit/linalg/blas/";
+  const std::vector<std::string> inames{folder + "input_matrices1.hdf5",
+                                        folder + "input_matrices2.hdf5"};
   dca::io::HDF5Reader reader;
-  reader.open_file(iname);
-  reader.execute("a", a);
-  reader.execute("b", b);
 
-  testProduct(a, b);
+  for (auto iname : inames) {
+    reader.open_file(iname);
+    reader.execute("a", a);
+    reader.execute("b", b);
+    reader.close_file();
+
+    testProduct(a, b);
+  }
 }
