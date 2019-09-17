@@ -14,28 +14,16 @@
 #include <random>
 #include <gtest/gtest.h>
 
+#include "dca/io/hdf5/hdf5_reader.hpp"
 #include "dca/linalg/matrixop.hpp"
 
-TEST(TensorcoreGemmTest, Product) {
-  using dca::linalg::Matrix;
-  using dca::linalg::GPU;
-  using dca::linalg::CPU;
+using dca::linalg::Matrix;
+using dca::linalg::GPU;
+using dca::linalg::CPU;
 
-  Matrix<float, CPU> a(8);
-  Matrix<float, CPU> b(8);
-  Matrix<float, CPU> c(8);
-
-  std::mt19937_64 rng(0);
-  std::uniform_real_distribution<float> distro(-1, 1);
-
-  auto fill = [&](auto& m) {
-    for (int j = 0; j < m.nrCols(); ++j)
-      for (int i = 0; i < m.nrRows(); ++i)
-        m(i, j) = distro(rng);
-  };
-
-  fill(a);
-  fill(b);
+void testProduct(const Matrix<float, CPU>& a, const Matrix<float, CPU>& b) {
+  ASSERT_EQ(a.nrCols(), b.nrRows());
+  Matrix<float, CPU> c(std::make_pair(a.nrRows(), b.nrCols()));
 
   // Compute expected result.
   dca::linalg::matrixop::gemm(a, b, c);
@@ -52,4 +40,34 @@ TEST(TensorcoreGemmTest, Product) {
   for (int j = 0; j < c.nrCols(); ++j)
     for (int i = 0; i < c.nrRows(); ++i)
       EXPECT_NEAR(c(i, j), c_tensor(i, j), 1e-5);
+}
+
+TEST(TensorcoreGemmTest, RandomMatrix) {
+  Matrix<float, CPU> a(8), b(8);
+
+  std::mt19937_64 rng(0);
+  std::uniform_real_distribution<float> distro(-1, 1);
+
+  auto fill = [&](auto& m) {
+    for (int j = 0; j < m.nrCols(); ++j)
+      for (int i = 0; i < m.nrRows(); ++i)
+        m(i, j) = distro(rng);
+  };
+
+  fill(a);
+  fill(b);
+
+  testProduct(a, b);
+}
+
+TEST(TensorcoreGemmTest, DCAMatrix) {
+  Matrix<float, CPU> a("a"), b("b");
+  const std::string iname = DCA_SOURCE_DIR "/test/unit/linalg/blas/input_matrices.hdf5";
+
+  dca::io::HDF5Reader reader;
+  reader.open_file(iname);
+  reader.execute("a", a);
+  reader.execute("b", b);
+
+  testProduct(a, b);
 }
