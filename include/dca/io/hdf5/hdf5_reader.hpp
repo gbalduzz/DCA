@@ -256,18 +256,15 @@ void HDF5Reader::execute(std::string name, dca::linalg::Matrix<scalar_type, dca:
   try {
     open_group(name);
 
+    std::vector<int> size(2);
+    execute("current-size", size);
+    A.resizeNoCopy(std::make_pair(size[0], size[1]));
+
     std::string full_name = get_path() + "/data";
 
     H5::DataSet dataset = my_file->openDataSet(full_name.c_str());
 
     H5::DataSpace dataspace = dataset.getSpace();
-
-    // These 2 lines fix the bug of reading into a matrix which has been resized to a smaller size
-    // hsize_t global_size[2] = {A.nrCols(), A.nrRows()}; // HDF5 use row
-    // major data distribution
-    // hsize_t global_size[2] = {A.capacity().second, A.capacity().first}; // HDF5 use
-    // row major data distribution
-    // dataspace.setExtentSimple(2, &global_size[0], NULL);
 
     H5Dread(dataset.getId(), HDF5_TYPE<scalar_type>::get(), dataspace.getId(), H5S_ALL, H5P_DEFAULT,
             &A(0, 0));
