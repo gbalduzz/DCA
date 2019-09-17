@@ -28,10 +28,9 @@ inline cublasDiagType_t getCublasDiagValue(char diag) {
       return CUBLAS_DIAG_UNIT;
     case 'N':
       return CUBLAS_DIAG_NON_UNIT;
+    default:
+      throw std::logic_error(__FUNCTION__);
   }
-
-  throw std::logic_error(__FUNCTION__);
-  return cublasDiagType_t();
 }
 
 // Returns the corresponding cublasSideMode_t value to side.
@@ -42,10 +41,9 @@ inline cublasSideMode_t getCublasSideValue(char side) {
       return CUBLAS_SIDE_LEFT;
     case 'R':
       return CUBLAS_SIDE_RIGHT;
+    default:
+      throw std::logic_error(__FUNCTION__);
   }
-
-  throw std::logic_error(__FUNCTION__);
-  return cublasSideMode_t();
 }
 
 // Returns the corresponding cublasOperation_t value to trans.
@@ -58,10 +56,9 @@ inline cublasOperation_t getCublasTransValue(char trans) {
       return CUBLAS_OP_T;
     case 'C':
       return CUBLAS_OP_C;
+    default:
+      throw std::logic_error(__FUNCTION__);
   }
-
-  throw std::logic_error(__FUNCTION__);
-  return cublasOperation_t();
 }
 
 // Returns the corresponding cublasFillMode_t value to uplo.
@@ -72,14 +69,13 @@ inline cublasFillMode_t getCublasUploValue(char uplo) {
       return CUBLAS_FILL_MODE_LOWER;
     case 'U':
       return CUBLAS_FILL_MODE_UPPER;
+    default:
+      throw std::logic_error(__FUNCTION__);
   }
-
-  throw std::logic_error(__FUNCTION__);
-  return cublasFillMode_t();
 }
 
-}  // cublas
-}  // linalg
-}  // dca
+}  // namespace cublas
+}  // namespace linalg
+}  // namespace dca
 
 #endif  // DCA_LINALG_BLAS_CUBLAS_CONVERSION_CHAR_TYPES_HPP
