@@ -15,7 +15,6 @@
 #include <cublas_v2.h>
 #include <thrust/device_ptr.h>
 #include <thrust/reduce.h>
-#include <math_functions.h>
 
 #include "dca/linalg/util/handle_functions.hpp"
 #include "dca/linalg/util/stream_functions.hpp"
@@ -44,8 +43,8 @@ void __global__ split(const MatrixView<float, GPU> fp32_in, const float scale, c
   const __half high = __float2half(original / scale);
   fp16_high(i, j) = high;
 
-  const float diff = original - __half2float(high);
-  const __half low = __float2half(diff * scale / scale2);
+  const float diff = original - __half2float(high) * scale;
+  const __half low = __float2half(diff / scale2);
   fp16_low(i, j) = low;
 }
 }  // namespace kernel
