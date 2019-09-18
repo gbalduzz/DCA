@@ -37,9 +37,14 @@ void testProduct(const Matrix<float, CPU>& a, const Matrix<float, CPU>& b) {
   dca::linalg::blas::tensorcoreGemm(a_dev, b_dev, workspace, c_dev);
   Matrix<float, CPU> c_tensor(c_dev);
 
+  float diff_l1(0), norm_l1(0);
   for (int j = 0; j < c.nrCols(); ++j)
-    for (int i = 0; i < c.nrRows(); ++i)
-      EXPECT_NEAR(c(i, j), c_tensor(i, j), 1e-5);
+    for (int i = 0; i < c.nrRows(); ++i) {
+      diff_l1 += std::abs(c_tensor(i, j) - c(i, j));
+      norm_l1 += std::abs(c(i, j));
+    }
+
+  EXPECT_GT(5e-7, diff_l1 / norm_l1);
 }
 
 TEST(TensorcoreGemmTest, RandomMatrix) {
