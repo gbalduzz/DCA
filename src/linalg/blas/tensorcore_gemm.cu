@@ -26,8 +26,7 @@ namespace blas {
 namespace kernel {
 // dca::linalg::blas::kernel::
 
-// Inverse transform of fp32_in[:] = fp16_high[:] / scale1 + fp16_low[:] / scale2
-// TODO: multiply here and divide later.
+// Inverse transform of fp32_in[:] = fp16_high[:] * scale1 + fp16_low[:] * scale2
 void __global__ split(const MatrixView<float, GPU> fp32_in, const float scale, const float scale2,
                       MatrixView<__half, GPU> fp16_high, MatrixView<__half, GPU> fp16_low) {
   const int i = threadIdx.x + blockDim.x * blockIdx.x;
@@ -40,11 +39,11 @@ void __global__ split(const MatrixView<float, GPU> fp32_in, const float scale, c
   }
 
   const float original = fp32_in(i, j);
-  const __half high = __float2half(original / scale);
+  const __half high = __float2half(original * scale);
   fp16_high(i, j) = high;
 
-  const float diff = original - __half2float(high) * scale;
-  const __half low = __float2half(diff / scale2);
+  const float diff = original - __half2float(high) / scale;
+  const __half low = __float2half(diff * scale2);
   fp16_low(i, j) = low;
 }
 }  // namespace kernel
@@ -69,10 +68,12 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
     }
     return max_val;
   };
-  const float max_abs = std::max(max_matrix(a), max_matrix(b));
+  const float max_abs1 = max_matrix(a);
+  const float max_abs2 = max_matrix(b);
+  const float max_abs = std::max(max_abs1, max_abs2);
 
-  const float scale1 = std::pow(2, int(std::ceil(std::log2(max_abs))));
-  const float scale2 = scale1 * std::pow(2., -11);
+  const float scale1 = 65504 / max_abs;  // std::pow(2, int(std::ceil(std::log2(max_abs))));
+  const float scale2 = scale1 * std::pow(2., 11);
 
   const dim3 threads(16, 16);
   using dca::util::ceilDiv;
@@ -114,15 +115,15 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
     assert(err == CUBLAS_STATUS_SUCCESS);
   };
 
-  // c <- beta* c + alpha * (a_high * b_high) * scale1**2
-  const auto alpha_11 = alpha * scale1 * scale1;
+  // c <- beta* c + alpha * (a_high * b_high) / scale1**2
+  const auto alpha_11 = alpha / (scale1 * scale1);
   multiply(alpha_11, a_high, b_high, beta, c);
 
-  // c += alpha * (a_high * b_low) * scale1 * scale2
-  const auto alpha_12 = alpha * scale2 * scale1;
+  // c += alpha * (a_high * b_low) / (scale1 * scale2)
+  const auto alpha_12 = alpha / (scale2 * scale1);
   multiply(alpha_12, a_high, b_low, 1., c);
 
-  // c += alpha * (a_low * b_high) * scale1 * scale2
+  // c += alpha * (a_low * b_high) / (scale1 * scale2)
   multiply(alpha_12, a_low, b_high, 1., c);
 }
 
