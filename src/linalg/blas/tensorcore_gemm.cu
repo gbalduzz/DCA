@@ -68,12 +68,17 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
     }
     return max_val;
   };
-  const float max_abs1 = max_matrix(a);
-  const float max_abs2 = max_matrix(b);
-  const float max_abs = std::max(max_abs1, max_abs2);
 
-  const float scale1 = 65504 / max_abs;  // std::pow(2, int(std::ceil(std::log2(max_abs))));
-  const float scale2 = scale1 * std::pow(2., 11);
+  auto get_scale = [&](const auto& m) {
+    const float max_mat = max_matrix(m);
+    constexpr auto max_half = 65504;
+    const float scale1 = max_half / max_mat;
+    constexpr int two_to_11 = 1 << 11;
+    return std::array<float, 2>{scale1, scale1 * two_to_11};
+  };
+
+  const auto scale_a = get_scale(a);
+  const auto scale_b = get_scale(b);
 
   const dim3 threads(16, 16);
   using dca::util::ceilDiv;
@@ -81,12 +86,12 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
 
   auto padd = [](int size, int to) { return (size + to - 1) / to * to; };
 
-  auto split = [&](const auto& m, auto& high, auto& low, int padx, int pady) {
+  auto split = [&](const auto& m, const auto& scale, auto& high, auto& low, int padx, int pady) {
     high.resizeNoCopy(std::make_pair(padd(m.nrRows(), padx), padd(m.nrCols(), pady)));
     low.resizeNoCopy(high.size());
 
     dim3 blocks(ceilDiv(high.nrRows(), int(threads.x)), ceilDiv(high.nrCols(), int(threads.y)));
-    kernel::split<<<blocks, threads, 0, stream>>>(m, scale1, scale2, high, low);
+    kernel::split<<<blocks, threads, 0, stream>>>(m, scale[0], scale[1], high, low);
   };
 
   auto& a_high = workspace[0];
@@ -94,8 +99,8 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
   auto& b_high = workspace[2];
   auto& b_low = workspace[3];
 
-  split(a, a_high, a_low, 8, 8);
-  split(b, b_high, b_low, 8, 8);
+  split(a, scale_a, a_high, a_low, 8, 8);
+  split(b, scale_b, b_high, b_low, 8, 8);
 
   auto handle = util::getHandle(thread_id, stream_id);
 
@@ -116,15 +121,16 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
   };
 
   // c <- beta* c + alpha * (a_high * b_high) / scale1**2
-  const auto alpha_11 = alpha / (scale1 * scale1);
+  const auto alpha_11 = alpha / (scale_a[0] * scale_b[0]);
   multiply(alpha_11, a_high, b_high, beta, c);
 
   // c += alpha * (a_high * b_low) / (scale1 * scale2)
-  const auto alpha_12 = alpha / (scale2 * scale1);
+  const auto alpha_12 = alpha / (scale_a[0] * scale_b[1]);
   multiply(alpha_12, a_high, b_low, 1., c);
 
   // c += alpha * (a_low * b_high) / (scale1 * scale2)
-  multiply(alpha_12, a_low, b_high, 1., c);
+  const auto alpha_21 = alpha / (scale_a[1] * scale_b[0]);  // Note: scale_12 == scale_21
+  multiply(alpha_21, a_low, b_high, 1., c);
 }
 
 }  // namespace blas
