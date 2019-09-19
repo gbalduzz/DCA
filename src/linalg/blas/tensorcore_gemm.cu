@@ -69,10 +69,16 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
     return max_val;
   };
 
+  auto prev_power2 = [](float x) {
+    int* casted = reinterpret_cast<int*>(&x);
+    const int modded = *casted & (0x1ff << 23);
+    return *reinterpret_cast<const float*>(&modded);
+  };
+
   auto get_scale = [&](const auto& m) {
     const float max_mat = max_matrix(m);
     constexpr auto max_half = 65504;
-    const float scale1 = max_half / max_mat;
+    const float scale1 = prev_power2(max_half / max_mat);
     constexpr int two_to_11 = 1 << 11;
     return std::array<float, 2>{scale1, scale1 * two_to_11};
   };
@@ -129,7 +135,7 @@ void tensorcoreGemm(const float alpha, const MatrixView<float, GPU>& a,
   multiply(alpha_12, a_high, b_low, 1., c);
 
   // c += alpha * (a_low * b_high) / (scale1 * scale2)
-  const auto alpha_21 = alpha / (scale_a[1] * scale_b[0]);  // Note: scale_12 == scale_21
+  const auto alpha_21 = alpha / (scale_a[1] * scale_b[0]);  // Note: equal to alpha_12.
   multiply(alpha_21, a_low, b_high, 1., c);
 }
 
