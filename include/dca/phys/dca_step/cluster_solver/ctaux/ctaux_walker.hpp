@@ -286,7 +286,7 @@ private:
   std::array<linalg::Vector<Real, device_t>, 2> exp_v_minus_one_dev_;
   std::array<linalg::util::CudaEvent, 2> m_computed_events_;
 
-  std::shared_ptr<std::array<linalg::Matrix<__half, device_t>, 4>> workspace_ptr_;
+  std::shared_ptr<std::array<linalg::Matrix<__half, linalg::GPU>, 4>> workspace_ptr_;
 
   bool config_initialized_;
 };  // namespace ctaux
@@ -344,11 +344,12 @@ CtauxWalker<device_t, Parameters, Data, Real>::CtauxWalker(Parameters& parameter
       warm_up_expansion_order_(),
       num_delayed_spins_(),
 
-      workspace_ptr_(std::make_shared<std::array<linalg::Matrix<__half, device_t>, 4>>()),
-
       config_initialized_(false){
-  N_tools_obj.set_workspace(workspace_ptr_);
-  G_tools_obj.set_workspace(workspace_ptr_);
+  if constexpr(device_t == linalg::GPU) {
+      workspace_ptr_ = std::make_shared<std::array<linalg::Matrix<__half, linalg::GPU>, 4>>();
+      N_tools_obj.set_workspace(workspace_ptr_);
+      G_tools_obj.set_workspace(workspace_ptr_);
+  }
 
   if (concurrency.id() == 0 and thread_id == 0) {
     std::cout << "\n\n"

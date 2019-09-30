@@ -76,7 +76,7 @@ public:
                                 Real* result_ptr, int incr);
 
   void set_workspace(std::shared_ptr<std::array<linalg::Matrix<__half, device_t>, 4>> ptr) {
-    workspace_ptr_ = ptr;
+    t_gemm_.set_workspace(ptr);
   }
 
 private:
@@ -100,8 +100,9 @@ private:
 
   CV<Parameters>& CV_obj;
 
-  std::shared_ptr<std::array<linalg::Matrix<__half, device_t>, 4>> workspace_ptr_;
-  constexpr static bool use_tensor_cores = config::McOptions::use_tensor_cores;
+  constexpr static bool use_tensor_cores =
+      config::McOptions::use_tensor_cores && device_t == linalg::GPU;
+  linalg::blas::TensorcoreGemm t_gemm_;
 };
 
 template <dca::linalg::DeviceType device_t, class Parameters, typename Real>
@@ -117,9 +118,7 @@ G_TOOLS<device_t, Parameters, Real>::G_TOOLS(int id, Parameters& parameters_ref,
       parameters(parameters_ref),
       concurrency(parameters.get_concurrency()),
 
-      CV_obj(CV_obj_ref),
-
-      workspace_ptr_(std::make_shared<std::array<linalg::Matrix<__half, device_t>, 4>>()) {}
+      CV_obj(CV_obj_ref) {}
 
 template <dca::linalg::DeviceType device_t, class Parameters, typename Real>
 double G_TOOLS<device_t, Parameters, Real>::get_Gflop() {
@@ -167,7 +166,7 @@ void G_TOOLS<device_t, Parameters, Real>::build_G_matrix(
 
     if constexpr (use_tensor_cores) {
       const auto N_view = linalg::makeViewFromConst(N);
-      linalg::blas::tensorcoreGemm(N_view, G0_right, *workspace_ptr_, G, thread_id, stream_id);
+      t_gemm_.execute(N_view, G0_right, G, thread_id, stream_id);
     }
     else {
       linalg::matrixop::gemm(N, G0_right, G, thread_id, stream_id);

@@ -86,8 +86,9 @@ public:
                       dca::linalg::Matrix<Real, device_t>& N,
                       dca::linalg::Matrix<Real, device_t>& Gamma, e_spin_states_type e_spin);
 
-  void set_workspace(std::shared_ptr<std::array<linalg::Matrix<__half, device_t>, 4>> ptr){
-      workspace_ptr_ = ptr;
+  void set_workspace(std::shared_ptr<std::array<linalg::Matrix<__half, linalg::GPU>, 4>> ptr) {
+    for (auto& t_gemm : t_gemms_)
+      t_gemm.set_workspace(ptr);
   }
 
   int deviceFingerprint() const {
@@ -122,8 +123,9 @@ private:
   dca::linalg::Matrix<Real, device_t> N_new_spins;
   dca::linalg::Matrix<Real, device_t> G0_times_exp_V_minus_one;
 
-  std::shared_ptr<std::array<linalg::Matrix<__half, device_t>, 4>> workspace_ptr_;
-  constexpr static bool use_tensor_cores = config::McOptions::use_tensor_cores;
+  constexpr static bool use_tensor_cores =
+      config::McOptions::use_tensor_cores && device_t == linalg::GPU;
+  std::array<linalg::blas::TensorcoreGemm, 2> t_gemms_;
 };
 
 template <dca::linalg::DeviceType device_t, typename Parameters, typename Real>
@@ -175,9 +177,7 @@ N_TOOLS<device_t, Parameters, Real>::N_TOOLS(int id, Parameters& parameters_ref,
       G0_times_exp_V_minus_one(
           "G0_times_exp_V_minus_one (N_TOOLS)", std::pair<int, int>(0, 0),
           std::pair<int, int>(MAX_VERTEX_SINGLETS * parameters.get_max_submatrix_size(),
-                              parameters.get_initial_matrix_size())),
-
-      workspace_ptr_(std::make_shared<std::array<linalg::Matrix<__half, device_t>, 4>>()) {}
+                              parameters.get_initial_matrix_size())) {}
 
 template <dca::linalg::DeviceType device_t, typename Parameters, typename Real>
 double N_TOOLS<device_t, Parameters, Real>::get_Gflop() {
@@ -339,8 +339,7 @@ void N_TOOLS<device_t, Parameters, Real>::update_N_matrix(configuration_type& co
   MatrixView N_bottom(N, first_shuffled_vertex_index, 0, m, n);
 
   if constexpr (use_tensor_cores) {
-    linalg::blas::tensorcoreGemm(G0_times_exp_V_minus_one, N_body, *workspace_ptr_, N_bottom,
-                                 thread_id, stream_id);
+    t_gemms_[0].execute(G0_times_exp_V_minus_one, N_body, N_bottom, thread_id, stream_id);
   }
   else {
     linalg::matrixop::gemm(G0_times_exp_V_minus_one, N_body, N_bottom, thread_id, stream_id);
@@ -409,8 +408,7 @@ void N_TOOLS<device_t, Parameters, Real>::rebuild_N_matrix_via_Gamma_LU(
   }
 
   if constexpr (use_tensor_cores)
-    linalg::blas::tensorcoreGemm(Real(-1), G, N_new_spins, *workspace_ptr_, Real(1), N, thread_id,
-                                 stream_id);
+    t_gemms_[1].execute(Real(-1), G, N_new_spins, Real(1), N, thread_id, stream_id);
   else
     linalg::matrixop::gemm(Real(-1.), G, N_new_spins, Real(1.), N, thread_id, stream_id);
 

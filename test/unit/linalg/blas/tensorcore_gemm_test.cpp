@@ -32,9 +32,10 @@ void testProduct(const Matrix<float, CPU>& a, const Matrix<float, CPU>& b) {
   Matrix<float, GPU> a_dev(a);
   Matrix<float, GPU> b_dev(b);
   Matrix<float, GPU> c_dev(c.size());
-  std::array<Matrix<__half, GPU>, 4> workspace;
 
-  dca::linalg::blas::tensorcoreGemm(a_dev, b_dev, workspace, c_dev);
+  dca::linalg::blas::TensorcoreGemm t_gemm;
+  t_gemm.execute(a_dev, b_dev, c_dev);
+
   Matrix<float, CPU> c_tensor(c_dev);
 
   float diff_l1(0), norm_l1(0);
@@ -45,7 +46,7 @@ void testProduct(const Matrix<float, CPU>& a, const Matrix<float, CPU>& b) {
     }
 
   const float diff_rel = diff_l1 / norm_l1;
-    std::cout << "Relative L1 diff: " << diff_rel << std::endl;
+  std::cout << "Relative L1 diff: " << diff_rel << std::endl;
   EXPECT_GT(5e-7, diff_rel);
 }
 
