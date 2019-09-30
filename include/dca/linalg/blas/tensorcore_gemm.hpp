@@ -32,7 +32,7 @@ namespace blas {
 
 class TensorcoreGemm {
 public:
-  TensorcoreGemm(unsigned calls_per_check = 10)
+  TensorcoreGemm(unsigned calls_per_check = 1)
       : scales_dev_(4), scales_host_(4), calls_per_check_(calls_per_check) {
     workspace_ = std::make_shared<std::array<Matrix<__half, GPU>, 4>>();
   }

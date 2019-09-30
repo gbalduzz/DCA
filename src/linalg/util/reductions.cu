@@ -22,6 +22,16 @@ namespace util {
 namespace kernels {
 // dca::linalg::util::kernels::
 
+template <class T>
+__device__ void inline reduceWarp(volatile T* sdata, const int tid) {
+  sdata[tid] = max(sdata[tid], sdata[tid + 32]);
+  sdata[tid] = max(sdata[tid], sdata[tid + 16]);
+  sdata[tid] = max(sdata[tid], sdata[tid + 8]);
+  sdata[tid] = max(sdata[tid], sdata[tid + 4]);
+  sdata[tid] = max(sdata[tid], sdata[tid + 2]);
+  sdata[tid] = max(sdata[tid], sdata[tid + 1]);
+}
+
 // TODO: generalize with arbitrary operator.
 // TODO: Optimize according to https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
 template <class T>
@@ -34,11 +44,13 @@ void __global__ reduceArray(const T* input, T* out, int n) {
   sdata[tid] = inp_idx < n ? input[inp_idx] : 0;
   __syncthreads();
 
-  for (unsigned stride = blockDim.x / 2; stride > 0; stride >>= 1) {
-    if (tid < stride)  //
+  for (unsigned stride = blockDim.x / 2; stride > 32; stride >>= 1) {  // 32 is the warp size.
+    if (tid < stride)
       sdata[tid] = max(sdata[tid], sdata[tid + stride]);
     __syncthreads();
   }
+  if (tid < 32)
+    reduceWarp(sdata, tid);
 
   if (tid == 0)
     out[blockIdx.x] = sdata[0];
@@ -58,11 +70,14 @@ void __global__ reduce2DAbsArray(const MatrixView<T, GPU> m, T* out) {
   sdata[tid] = inp_idx < n ? abs(m(i, j)) : 0;
   __syncthreads();
 
-  for (unsigned stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+  for (unsigned stride = blockDim.x / 2; stride > 32; stride >>= 1) {
     if (tid < stride)  //
       sdata[tid] = max(sdata[tid], sdata[tid + stride]);
     __syncthreads();
   }
+  if (tid < 32)
+    reduceWarp(sdata, tid);
+
   if (tid == 0)
     out[blockIdx.x] = sdata[0];
 }
