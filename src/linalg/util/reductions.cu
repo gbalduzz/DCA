@@ -14,7 +14,6 @@
 #include <cuda.h>
 
 #include "dca/linalg/util/error_cuda.hpp"
-#include "dca/util/integer_division.hpp"
 
 namespace dca {
 namespace linalg {
@@ -32,19 +31,36 @@ __device__ void inline reduceWarp(volatile T* sdata, const int tid) {
   sdata[tid] = max(sdata[tid], sdata[tid + 1]);
 }
 
-template <class T>
+template <int block_size, class T>
 __device__ void inline reduceShared(volatile T* sdata, const int tid) {
-  for (unsigned stride = blockDim.x / 2; stride > 32; stride >>= 1) {  // 32 is the warp size.
-    if (tid < stride)
-      sdata[tid] = max(sdata[tid], sdata[tid + stride]);
+  if (block_size >= 1024) {
+    if (tid < 512)
+      sdata[tid] = max(sdata[tid], sdata[tid + 512]);
     __syncthreads();
   }
+  if (block_size >= 512) {
+    if (tid < 256)
+      sdata[tid] = max(sdata[tid], sdata[tid + 256]);
+    __syncthreads();
+  }
+  if (block_size >= 256) {
+    if (tid < 128)
+      sdata[tid] = max(sdata[tid], sdata[tid + 128]);
+    __syncthreads();
+  }
+  if (block_size >= 128) {
+    if (tid < 64)
+      sdata[tid] = max(sdata[tid], sdata[tid + 64]);
+    __syncthreads();
+  }
+
+  assert(block_size >= 64);
   if (tid < 32)
     reduceWarp(sdata, tid);
 }
 
 // TODO: generalize with arbitrary operator.
-template <class T>
+template <unsigned block_size, class T>
 void __global__ reduceSingleBlock(T* data) {
   assert(blockIdx.x == 0);
   extern __shared__ T sdata[];
@@ -53,12 +69,12 @@ void __global__ reduceSingleBlock(T* data) {
   sdata[tid] = data[tid];
   __syncthreads();
 
-  reduceShared(sdata, tid);
+  reduceShared<block_size>(sdata, tid);
 
   data[0] = sdata[0];
 }
 
-template <class T>
+template <unsigned block_size, class T>
 void __global__ reduce2DAbsArray(const MatrixView<T, GPU> m, T* out) {
   extern __shared__ T sdata[];
   const int tid = threadIdx.x;
@@ -74,7 +90,7 @@ void __global__ reduce2DAbsArray(const MatrixView<T, GPU> m, T* out) {
   }
   __syncthreads();
 
-  reduceShared(sdata, tid);
+  reduceShared<block_size>(sdata, tid);
 
   if (tid == 0)
     out[blockIdx.x] = sdata[0];
@@ -86,21 +102,35 @@ void __global__ reduce2DAbsArray(const MatrixView<T, GPU> m, T* out) {
 template <class T>
 T* reduceAbsMatrix(const MatrixView<T, GPU>& m, Vector<T, GPU>& workspace, cudaStream_t stream) {
   constexpr unsigned threads = 1024;
-
   const unsigned n = m.nrRows() * m.nrCols();
+
   if (!n) {
     workspace.resizeNoCopy(1);
     cudaMemsetAsync(workspace.ptr(), 0, sizeof(float), stream);
     return workspace.ptr();
   }
 
-  const unsigned blocks = std::min(128u, dca::util::ceilDiv(n, threads));
+  const unsigned div = n / threads;
+  const unsigned blocks = div > 64 ? 128 : div > 1 ? 64 : 1;
+
   workspace.resizeNoCopy(blocks);
 
-  kernels::reduce2DAbsArray<<<blocks, threads, threads * sizeof(T), stream>>>(m, workspace.ptr());
+  kernels::reduce2DAbsArray<threads>
+      <<<blocks, threads, threads * sizeof(T), stream>>>(m, workspace.ptr());
 
-  const unsigned new_threads = blocks;
-  kernels::reduceSingleBlock<<<1, new_threads, new_threads * sizeof(T), stream>>>(workspace.ptr());
+  switch (blocks) {
+    case 1:
+      return workspace.ptr();
+    case 64:
+      kernels::reduceSingleBlock<64><<<1, 64, 64 * sizeof(T), stream>>>(workspace.ptr());
+      break;
+    case 128:
+      kernels::reduceSingleBlock<128><<<1, 128, 128 * sizeof(T), stream>>>(workspace.ptr());
+      break;
+    default:
+      throw(std::logic_error("Case not supported."));
+  }
+
   return workspace.ptr();
 }
 

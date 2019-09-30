@@ -23,7 +23,7 @@ namespace util {
 // Compute the maximum entry of m in absolute value.
 // Out: workspace.
 // Returns: device pointer to the result.
-// Postcondition: the result is an element of workspace.
+// Postcondition: the result is the first element of workspace.
 template <class T>
 T* reduceAbsMatrix(const MatrixView<T, GPU>& m, Vector<T, GPU>& workspace, cudaStream_t stream);
 
