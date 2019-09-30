@@ -57,7 +57,7 @@ private:
 };
 
 // Returns the elapsed time in seconds between two recorded events. Blocks host.
-float elapsedTime(cudaEvent_t stop, cudaEvent_t start) {
+inline float elapsedTime(cudaEvent_t stop, cudaEvent_t start) {
   cudaEventSynchronize(stop);
   float msec(0);
   cudaEventElapsedTime(&msec, start, stop);

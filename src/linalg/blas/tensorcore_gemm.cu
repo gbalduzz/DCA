@@ -13,10 +13,9 @@
 
 #include <iostream>
 #include <cublas_v2.h>
-#include <thrust/device_ptr.h>
-#include <thrust/reduce.h>
 
 #include "dca/linalg/util/handle_functions.hpp"
+#include "dca/linalg/util/reductions.hpp"
 #include "dca/linalg/util/stream_functions.hpp"
 #include "dca/util/integer_division.hpp"
 
@@ -48,8 +47,26 @@ void __global__ split(const MatrixView<float, GPU> fp32_in, const float* scales,
   const __half low = __float2half(diff * scale2);
   fp16_low(i, j) = low;
 }
+
+union FloatU {
+  float f;
+  int i;
+};
+
+void __global__ computeScale(const float* max_val, float* scale) {
+  auto prev_power2 = [](float x) -> float {
+    FloatU u = {x};
+    u.i = u.i & (0x1ff << 23);  // Set mantissa to zero.
+    return u.f;
+  };
+
+  constexpr auto max_half = 65504;
+  scale[0] = prev_power2(max_half / *max_val);
+  constexpr unsigned pow11 = 1 << 11;
+  scale[1] = scale[0] * pow11;
+}
+
 }  // namespace kernel
-// dca::linalg::blas::
 
 void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
                              const MatrixView<float, GPU>& b, const float beta,
@@ -57,14 +74,15 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
   assert(a.nrCols() == b.nrRows());
   assert(a.nrRows() == c.nrRows());
   assert(b.nrCols() == c.nrCols());
+  auto stream = util::getStream(thread_id, stream_id);
 
-  computeScale(scales_host_.ptr(), a);
-  computeScale(scales_host_.ptr(2), b);
-  scales_dev_.setAsync(scales_host_, thread_id, stream_id);
+  computeScale(scales_dev_.ptr(), a, stream);
+  computeScale(scales_dev_.ptr(2), b, stream);
+  scales_host_.setAsync(scales_dev_, thread_id, stream_id);
+  scale_copied_.record(stream);
 
   const dim3 threads(16, 16);
   using dca::util::ceilDiv;
-  auto stream = util::getStream(thread_id, stream_id);
 
   auto padd = [](int size, int to) { return (size + to - 1) / to * to; };
 
@@ -102,6 +120,8 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
     assert(err == CUBLAS_STATUS_SUCCESS);
   };
 
+  // TODO: store alpha factor on the device. Remove sync.
+  scale_copied_.block();
   const float* const scale_a = scales_host_.ptr(0);
   const float* const scale_b = scales_host_.ptr(2);
 
@@ -120,38 +140,10 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
   ++n_calls_;
 }
 
-union FloatU {
-  float f;
-  unsigned i;
-};
-
-void TensorcoreGemm::computeScale(float* scales, const MatrixView<float, GPU>& m) {
-  auto max_matrix = [](const MatrixView<float, GPU>& m) -> float {
-    float max_val = 0;
-    for (int j = 0; j < m.nrCols(); ++j) {
-      const float val =
-          thrust::reduce(thrust::device_pointer_cast(m.ptr(0, j)),
-                         thrust::device_pointer_cast(m.ptr(m.nrRows(), j)), 1.f,
-                         [] __device__ __host__(float a, float b) { return max(fabs(a), fabs(b)); });
-
-      max_val = std::max(val, max_val);
-    }
-    return max_val;
-  };
-
-  auto prev_power2 = [](float x) -> float {
-    FloatU u = {x};
-    u.i = u.i & (0x1ffu << 23u);  // Set mantissa to zero.
-    return u.f;
-  };
-
-  const float max_mat = max_matrix(m);
-  constexpr auto max_half = 65504;
-  const float scale1 = prev_power2(max_half / max_mat);
-  constexpr int two_to_11 = 1 << 11;
-
-  scales[0] = scale1;
-  scales[1] = scale1 * two_to_11;
+void TensorcoreGemm::computeScale(float* scales, const MatrixView<float, GPU>& m,
+                                  cudaStream_t stream) {
+  float* max_val = linalg::util::reduceAbsMatrix(m, reduction_wp_, stream);
+  kernel::computeScale<<<1, 1, 0, stream>>>(max_val, scales);
 }
 
 }  // namespace blas

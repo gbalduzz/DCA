@@ -14,3 +14,8 @@ dca_add_gtest(stream_handle_test
               GTEST_MAIN
               CUDA
               LIBS ${DCA_LIBS})
+
+dca_add_gtest(reductions_test
+        GTEST_MAIN
+        CUDA
+        LIBS cuda_utils)

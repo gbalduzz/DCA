@@ -14,7 +14,6 @@
 #ifdef DCA_HAVE_CUDA
 
 #include <cuda.h>
-#include <magma.h>
 
 namespace dca {
 namespace linalg {

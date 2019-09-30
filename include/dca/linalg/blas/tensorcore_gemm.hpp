@@ -23,6 +23,7 @@
 #include "dca/linalg/matrix.hpp"
 #include "dca/linalg/matrix_view.hpp"
 #include "dca/linalg/vector.hpp"
+#include "dca/linalg/util/cuda_event.hpp"
 
 namespace dca {
 namespace linalg {
@@ -50,13 +51,14 @@ public:
     return execute(float(1.), a, b, float(0.), c, thread_id, stream_id);
   }
 
-  /**/ public:
-  void computeScale(float* scales, const MatrixView<float, GPU>& m);
+private:
+  void computeScale(float* scales, const MatrixView<float, GPU>& m, cudaStream_t stream);
 
-  /**/ private:
   std::shared_ptr<std::array<Matrix<__half, GPU>, 4>> workspace_;
+  Vector<float, GPU> reduction_wp_;
   Vector<float, GPU> scales_dev_;
   Vector<float, CPU> scales_host_;
+  util::CudaEvent scale_copied_;
   unsigned n_calls_ = 0;
   unsigned calls_per_check_;
 };
