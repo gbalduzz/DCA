@@ -76,10 +76,13 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
   assert(b.nrCols() == c.nrCols());
   auto stream = util::getStream(thread_id, stream_id);
 
-  computeScale(scales_dev_.ptr(), a, stream);
-  computeScale(scales_dev_.ptr(2), b, stream);
-  scales_host_.setAsync(scales_dev_, thread_id, stream_id);
-  scale_copied_.record(stream);
+  // Compute scale factor once every calls_per_check_ calls.
+  if (n_calls_ == 0) {
+    computeScale(scales_dev_.ptr(), a, stream);
+    computeScale(scales_dev_.ptr(2), b, stream);
+    scales_host_.setAsync(scales_dev_, thread_id, stream_id);
+    scale_copied_.record(stream);
+  }
 
   const dim3 threads(16, 16);
   using dca::util::ceilDiv;
@@ -121,7 +124,9 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
   };
 
   // TODO: store alpha factor on the device. Remove sync.
-  scale_copied_.block();
+  if (n_calls_ == 0)
+    scale_copied_.block();
+
   const float* const scale_a = scales_host_.ptr(0);
   const float* const scale_b = scales_host_.ptr(2);
 
@@ -138,6 +143,8 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
   multiply(alpha_21, a_low, b_high, 1., c);
 
   ++n_calls_;
+  if (n_calls_ >= calls_per_check_)
+    n_calls_ = 0;
 }
 
 void TensorcoreGemm::computeScale(float* scales, const MatrixView<float, GPU>& m,
