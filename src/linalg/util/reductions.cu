@@ -32,18 +32,8 @@ __device__ void inline reduceWarp(volatile T* sdata, const int tid) {
   sdata[tid] = max(sdata[tid], sdata[tid + 1]);
 }
 
-// TODO: generalize with arbitrary operator.
-// TODO: Optimize according to https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
 template <class T>
-void __global__ reduceArray(const T* input, T* out, int n) {
-  extern __shared__ T sdata[];
-
-  const int tid = threadIdx.x;
-  const int inp_idx = tid + blockIdx.x * blockDim.x;
-
-  sdata[tid] = inp_idx < n ? input[inp_idx] : 0;
-  __syncthreads();
-
+__device__ void inline reduceShared(volatile T* sdata, const int tid) {
   for (unsigned stride = blockDim.x / 2; stride > 32; stride >>= 1) {  // 32 is the warp size.
     if (tid < stride)
       sdata[tid] = max(sdata[tid], sdata[tid + stride]);
@@ -51,32 +41,40 @@ void __global__ reduceArray(const T* input, T* out, int n) {
   }
   if (tid < 32)
     reduceWarp(sdata, tid);
+}
 
-  if (tid == 0)
-    out[blockIdx.x] = sdata[0];
+// TODO: generalize with arbitrary operator.
+template <class T>
+void __global__ reduceSingleBlock(T* data) {
+  assert(blockIdx.x == 0);
+  extern __shared__ T sdata[];
+  const int tid = threadIdx.x;
+
+  sdata[tid] = data[tid];
+  __syncthreads();
+
+  reduceShared(sdata, tid);
+
+  data[0] = sdata[0];
 }
 
 template <class T>
 void __global__ reduce2DAbsArray(const MatrixView<T, GPU> m, T* out) {
   extern __shared__ T sdata[];
-
   const int tid = threadIdx.x;
-  const int inp_idx = tid + blockIdx.x * blockDim.x;
+  sdata[tid] = 0;
 
-  const int j = inp_idx / m.nrRows();
-  const int i = inp_idx - j * m.nrRows();
   const int n = m.nrCols() * m.nrRows();
+  const int grid_stride = blockDim.x * gridDim.x;
+  for (int inp_idx = tid + blockIdx.x * blockDim.x; inp_idx < n; inp_idx += grid_stride) {
+    const int j = inp_idx / m.nrRows();
+    const int i = inp_idx - j * m.nrRows();
 
-  sdata[tid] = inp_idx < n ? abs(m(i, j)) : 0;
+    sdata[tid] = max(sdata[tid], abs(m(i, j)));
+  }
   __syncthreads();
 
-  for (unsigned stride = blockDim.x / 2; stride > 32; stride >>= 1) {
-    if (tid < stride)  //
-      sdata[tid] = max(sdata[tid], sdata[tid + stride]);
-    __syncthreads();
-  }
-  if (tid < 32)
-    reduceWarp(sdata, tid);
+  reduceShared(sdata, tid);
 
   if (tid == 0)
     out[blockIdx.x] = sdata[0];
@@ -96,27 +94,14 @@ T* reduceAbsMatrix(const MatrixView<T, GPU>& m, Vector<T, GPU>& workspace, cudaS
     return workspace.ptr();
   }
 
-  unsigned blocks = dca::util::ceilDiv(n, threads);
-  workspace.resizeNoCopy(blocks +
-                         dca::util::ceilDiv(blocks, threads));  // Reserve space for next step.
+  const unsigned blocks = std::min(128u, dca::util::ceilDiv(n, threads));
+  workspace.resizeNoCopy(blocks);
 
   kernels::reduce2DAbsArray<<<blocks, threads, threads * sizeof(T), stream>>>(m, workspace.ptr());
-  checkRC(cudaPeekAtLastError());
 
-  T* in = workspace.ptr(0);
-  T* out = workspace.ptr(blocks);
-  while (true) {
-    const unsigned new_blocks = dca::util::ceilDiv(blocks, threads);
-    kernels::reduceArray<<<new_blocks, threads, threads * sizeof(T), stream>>>(in, out, blocks);
-    checkRC(cudaPeekAtLastError());
-
-    if (new_blocks == 1) {
-      return out;
-    }
-
-    std::swap(in, out);
-    blocks = new_blocks;
-  }
+  const unsigned new_threads = blocks;
+  kernels::reduceSingleBlock<<<1, new_threads, new_threads * sizeof(T), stream>>>(workspace.ptr());
+  return workspace.ptr();
 }
 
 template float* reduceAbsMatrix(const MatrixView<float, GPU>&, Vector<float, GPU>&, cudaStream_t);
