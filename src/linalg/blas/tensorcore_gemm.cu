@@ -22,11 +22,13 @@
 namespace dca {
 namespace linalg {
 namespace blas {
+constexpr unsigned two_to_11 = 2048;
+
 namespace kernel {
 // dca::linalg::blas::kernel::
 
 // Inverse transform of fp32_in[:] = fp16_high[:] * scale1 + fp16_low[:] * scale2
-void __global__ split(const MatrixView<float, GPU> fp32_in, const float* scales,
+void __global__ split(const MatrixView<float, GPU> fp32_in, const float* scale,
                       MatrixView<__half, GPU> fp16_high, MatrixView<__half, GPU> fp16_low) {
   const int i = threadIdx.x + blockDim.x * blockIdx.x;
   const int j = threadIdx.y + blockDim.y * blockIdx.y;
@@ -37,14 +39,12 @@ void __global__ split(const MatrixView<float, GPU> fp32_in, const float* scales,
     return;
   }
 
-  const float original = fp32_in(i, j);
-  const float scale = scales[0];
-  const __half high = __float2half(original * scale);
-  fp16_high(i, j) = high;
+  const float scaled = fp32_in(i, j) * scale[0];
 
-  const float scale2 = scales[1];
-  const float diff = original - __half2float(high) / scale;
-  const __half low = __float2half(diff * scale2);
+  const __half high = __float2half(scaled);
+  const __half low = __float2half((scaled - __half2float(high)) * two_to_11);
+
+  fp16_high(i, j) = high;
   fp16_low(i, j) = low;
 }
 
@@ -61,9 +61,7 @@ void __global__ computeScale(const float* max_val, float* scale) {
   };
 
   constexpr auto max_half = 65504;
-  scale[0] = prev_power2(max_half / *max_val);
-  constexpr unsigned pow11 = 1 << 11;
-  scale[1] = scale[0] * pow11;
+  *scale = prev_power2(max_half / *max_val);
 }
 
 }  // namespace kernel
@@ -79,7 +77,7 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
   // Compute scale factor once every calls_per_check_ calls.
   if (n_calls_ == 0) {
     computeScale(scales_dev_.ptr(), a, stream);
-    computeScale(scales_dev_.ptr(2), b, stream);
+    computeScale(scales_dev_.ptr(1), b, stream);
     scales_host_.setAsync(scales_dev_, thread_id, stream_id);
     scale_copied_.record(stream);
   }
@@ -89,12 +87,12 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
 
   auto padd = [](int size, int to) { return (size + to - 1) / to * to; };
 
-  auto split = [&](const auto& m, const float* scales, auto& high, auto& low, int padx, int pady) {
+  auto split = [&](const auto& m, const float* scale, auto& high, auto& low, int padx, int pady) {
     high.resizeNoCopy(std::make_pair(padd(m.nrRows(), padx), padd(m.nrCols(), pady)));
     low.resizeNoCopy(high.size());
 
     dim3 blocks(ceilDiv(high.nrRows(), int(threads.x)), ceilDiv(high.nrCols(), int(threads.y)));
-    kernel::split<<<blocks, threads, 0, stream>>>(m, scales, high, low);
+    kernel::split<<<blocks, threads, 0, stream>>>(m, scale, high, low);
   };
 
   auto& a_high = (*workspace_)[0];
@@ -103,7 +101,7 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
   auto& b_low = (*workspace_)[3];
 
   split(a, scales_dev_.ptr(), a_high, a_low, 8, 8);
-  split(b, scales_dev_.ptr(2), b_high, b_low, 8, 8);
+  split(b, scales_dev_.ptr(1), b_high, b_low, 8, 8);
 
   auto handle = util::getHandle(thread_id, stream_id);
 
@@ -127,30 +125,28 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
   if (n_calls_ == 0)
     scale_copied_.block();
 
-  const float* const scale_a = scales_host_.ptr(0);
-  const float* const scale_b = scales_host_.ptr(2);
+  const float scale_a = scales_host_[0];
+  const float scale_b = scales_host_[1];
 
   // c <- beta* c + alpha * (a_high * b_high) / scale1**2
-  const auto alpha_11 = alpha / (scale_a[0] * scale_b[0]);
+  const auto alpha_11 = alpha / (scale_a * scale_b);
   multiply(alpha_11, a_high, b_high, beta, c);
 
   // c += alpha * (a_high * b_low) / (scale1 * scale2)
-  const auto alpha_12 = alpha / (scale_a[0] * scale_b[1]);
+  const auto alpha_12 = alpha_11 / two_to_11;
   multiply(alpha_12, a_high, b_low, 1., c);
 
   // c += alpha * (a_low * b_high) / (scale1 * scale2)
-  const auto alpha_21 = alpha / (scale_a[1] * scale_b[0]);  // Note: equal to alpha_12.
-  multiply(alpha_21, a_low, b_high, 1., c);
+  multiply(alpha_12, a_low, b_high, 1., c);
 
   ++n_calls_;
   if (n_calls_ >= calls_per_check_)
     n_calls_ = 0;
 }
 
-void TensorcoreGemm::computeScale(float* scales, const MatrixView<float, GPU>& m,
-                                  cudaStream_t stream) {
+void TensorcoreGemm::computeScale(float* scale, const MatrixView<float, GPU>& m, cudaStream_t stream) {
   float* max_val = linalg::util::reduceAbsMatrix(m, reduction_wp_, stream);
-  kernel::computeScale<<<1, 1, 0, stream>>>(max_val, scales);
+  kernel::computeScale<<<1, 1, 0, stream>>>(max_val, scale);
 }
 
 }  // namespace blas

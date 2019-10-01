@@ -47,7 +47,7 @@ void testProduct(const Matrix<float, CPU>& a, const Matrix<float, CPU>& b) {
 
   const float diff_rel = diff_l1 / norm_l1;
   std::cout << "Relative L1 diff: " << diff_rel << std::endl;
-  EXPECT_GT(5e-7, diff_rel);
+  EXPECT_GT(10e-7, diff_rel);
 }
 
 TEST(TensorcoreGemmTest, RandomMatrix) {

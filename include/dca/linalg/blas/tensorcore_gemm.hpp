@@ -33,7 +33,7 @@ namespace blas {
 class TensorcoreGemm {
 public:
   TensorcoreGemm(unsigned calls_per_check = 1)
-      : scales_dev_(4), scales_host_(4), calls_per_check_(calls_per_check) {
+      : scales_dev_(2), scales_host_(2), calls_per_check_(calls_per_check) {
     workspace_ = std::make_shared<std::array<Matrix<__half, GPU>, 4>>();
   }
 
@@ -52,7 +52,7 @@ public:
   }
 
 private:
-  void computeScale(float* scales, const MatrixView<float, GPU>& m, cudaStream_t stream);
+  void computeScale(float* scale, const MatrixView<float, GPU>& m, cudaStream_t stream);
 
   std::shared_ptr<std::array<Matrix<__half, GPU>, 4>> workspace_;
   Vector<float, GPU> reduction_wp_;
