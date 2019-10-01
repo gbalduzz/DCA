@@ -33,8 +33,10 @@ namespace blas {
 class TensorcoreGemm {
 public:
   TensorcoreGemm(unsigned calls_per_check = 1)
-      : scales_dev_(2), scales_host_(2), calls_per_check_(calls_per_check) {
+      : scales_and_alphas_(6), calls_per_check_(calls_per_check) {
     workspace_ = std::make_shared<std::array<Matrix<__half, GPU>, 4>>();
+    const float one = 1.;
+    cudaMemcpy(scales_and_alphas_.ptr(5), &one, sizeof(float), cudaMemcpyHostToDevice);
   }
 
   void set_workspace(const std::shared_ptr<std::array<Matrix<__half, GPU>, 4>>& workspace) {
@@ -56,9 +58,7 @@ private:
 
   std::shared_ptr<std::array<Matrix<__half, GPU>, 4>> workspace_;
   Vector<float, GPU> reduction_wp_;
-  Vector<float, GPU> scales_dev_;
-  Vector<float, CPU> scales_host_;
-  util::CudaEvent scale_copied_;
+  Vector<float, GPU> scales_and_alphas_;  // Stores {scale_a, scale_b, alpha_11, alpha_12, beta, 1}
   unsigned n_calls_ = 0;
   unsigned calls_per_check_;
 };

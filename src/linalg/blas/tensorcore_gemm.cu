@@ -28,8 +28,8 @@ namespace kernel {
 // dca::linalg::blas::kernel::
 
 // Inverse transform of fp32_in[:] = fp16_high[:] * scale1 + fp16_low[:] * scale2
-void __global__ split(int nri, int nci, int nro, int nco, const float* __restrict__ in, const int ldi,
-                      const float* __restrict__ scale, __half* __restrict__ high,
+void __global__ split(int nri, int nci, int nro, int nco, const float* __restrict__ in,
+                      const int ldi, const float* __restrict__ scale, __half* __restrict__ high,
                       __half* __restrict__ low, const int ldo) {
   const int i = threadIdx.x + blockDim.x * blockIdx.x;
   const int j = threadIdx.y + blockDim.y * blockIdx.y;
@@ -56,7 +56,7 @@ union FloatU {
   int i;
 };
 
-void __global__ computeScale(const float* max_val, float* scale) {
+void __global__ computeScale(const float* __restrict__ max_val, float* __restrict__ scale) {
   auto prev_power2 = [](float x) -> float {
     FloatU u = {x};
     u.i = u.i & (0x1ff << 23);  // Set mantissa to zero.
@@ -65,6 +65,13 @@ void __global__ computeScale(const float* max_val, float* scale) {
 
   constexpr auto max_half = 65504;
   *scale = prev_power2(max_half / *max_val);
+}
+
+void __global__ setAlphaBeta(const float* __restrict__ scales, float* __restrict__ alphas_beta,
+                             const float alpha, const float beta) {
+  alphas_beta[0] = alpha / (scales[0] * scales[1]);
+  alphas_beta[1] = alphas_beta[0] / two_to_11;
+  alphas_beta[2] = beta;
 }
 
 }  // namespace kernel
@@ -79,11 +86,11 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
 
   // Compute scale factor once every calls_per_check_ calls.
   if (n_calls_ == 0) {
-    computeScale(scales_dev_.ptr(), a, stream);
-    computeScale(scales_dev_.ptr(1), b, stream);
-    scales_host_.setAsync(scales_dev_, thread_id, stream_id);
-    scale_copied_.record(stream);
+    computeScale(scales_and_alphas_.ptr(), a, stream);
+    computeScale(scales_and_alphas_.ptr(1), b, stream);
   }
+  kernel::setAlphaBeta<<<1, 1, 0, stream>>>(scales_and_alphas_.ptr(), scales_and_alphas_.ptr(2),
+                                            alpha, beta);
 
   const dim3 threads(16, 16);
   using dca::util::ceilDiv;
@@ -106,12 +113,14 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
   auto& b_high = (*workspace_)[2];
   auto& b_low = (*workspace_)[3];
 
-  split(a, scales_dev_.ptr(), a_high, a_low, 8, 8);
-  split(b, scales_dev_.ptr(1), b_high, b_low, 8, 8);
+  split(a, scales_and_alphas_.ptr(), a_high, a_low, 8, 8);
+  split(b, scales_and_alphas_.ptr(1), b_high, b_low, 8, 8);
 
   auto handle = util::getHandle(thread_id, stream_id);
 
-  auto multiply = [&](float alpha, const auto& a, const auto& b, float beta, auto& c) {
+  cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_DEVICE);
+  auto multiply = [&](const float* alpha_dev, const auto& a, const auto& b, const float* beta_dev,
+                      auto& c) {
     const int m = a.nrRows();
     const int n = b.nrCols();
     const int k = a.nrCols();
@@ -120,30 +129,23 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
     assert(m % 8 == 0);
     assert(k % 8 == 0);
 
-    auto err = cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, a.ptr(), CUDA_R_16F,
-                            a.leadingDimension(), b.ptr(), CUDA_R_16F, b.leadingDimension(), &beta,
-                            c.ptr(), CUDA_R_32F, c.leadingDimension(), CUDA_R_32F,
-                            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+    auto err = cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha_dev, a.ptr(),
+                            CUDA_R_16F, a.leadingDimension(), b.ptr(), CUDA_R_16F,
+                            b.leadingDimension(), beta_dev, c.ptr(), CUDA_R_32F,
+                            c.leadingDimension(), CUDA_R_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
     assert(err == CUBLAS_STATUS_SUCCESS);
   };
 
-  // TODO: store alpha factor on the device. Remove sync.
-  if (n_calls_ == 0)
-    scale_copied_.block();
-
-  const float scale_a = scales_host_[0];
-  const float scale_b = scales_host_[1];
-
-  // c <- beta* c + alpha * (a_high * b_high) / scale1**2
-  const auto alpha_11 = alpha / (scale_a * scale_b);
-  multiply(alpha_11, a_high, b_high, beta, c);
+  // c <- beta * c + alpha * (a_high * b_high) / scale1**2
+  multiply(scales_and_alphas_.ptr(2), a_high, b_high, scales_and_alphas_.ptr(4), c);
 
   // c += alpha * (a_high * b_low) / (scale1 * scale2)
-  const auto alpha_12 = alpha_11 / two_to_11;
-  multiply(alpha_12, a_high, b_low, 1., c);
+  multiply(scales_and_alphas_.ptr(3), a_high, b_low, scales_and_alphas_.ptr(5), c);
 
   // c += alpha * (a_low * b_high) / (scale1 * scale2)
-  multiply(alpha_12, a_low, b_high, 1., c);
+  multiply(scales_and_alphas_.ptr(3), a_low, b_high, scales_and_alphas_.ptr(5), c);
+
+  cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
 
   ++n_calls_;
   if (n_calls_ >= calls_per_check_)
