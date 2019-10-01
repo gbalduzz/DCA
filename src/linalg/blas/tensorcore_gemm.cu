@@ -28,24 +28,27 @@ namespace kernel {
 // dca::linalg::blas::kernel::
 
 // Inverse transform of fp32_in[:] = fp16_high[:] * scale1 + fp16_low[:] * scale2
-void __global__ split(const MatrixView<float, GPU> fp32_in, const float* scale,
-                      MatrixView<__half, GPU> fp16_high, MatrixView<__half, GPU> fp16_low) {
+void __global__ split(int nri, int nci, int nro, int nco, const float* __restrict__ in, const int ldi,
+                      const float* __restrict__ scale, __half* __restrict__ high,
+                      __half* __restrict__ low, const int ldo) {
   const int i = threadIdx.x + blockDim.x * blockIdx.x;
   const int j = threadIdx.y + blockDim.y * blockIdx.y;
-  if (i >= fp16_high.nrRows() || j >= fp16_high.nrCols())
+  if (i >= nro || j >= nco)
     return;
-  if (i >= fp32_in.nrRows() || j >= fp32_in.nrCols()) {  // padding area.
-    fp16_high(i, j) = fp16_low(i, j) = 0;
+
+  const int dist_o = i + ldo * j;
+  if (i >= nri || j >= nci) {  // padding area.
+    high[dist_o] = low[dist_o] = 0;
     return;
   }
 
-  const float scaled = fp32_in(i, j) * scale[0];
+  const float scaled = in[i + ldi * j] * scale[0];
 
-  const __half high = __float2half(scaled);
-  const __half low = __float2half((scaled - __half2float(high)) * two_to_11);
+  const __half h = __float2half(scaled);
+  const __half l = __float2half((scaled - __half2float(h)) * two_to_11);
 
-  fp16_high(i, j) = high;
-  fp16_low(i, j) = low;
+  high[dist_o] = h;
+  low[dist_o] = l;
 }
 
 union FloatU {
@@ -92,7 +95,10 @@ void TensorcoreGemm::execute(const float alpha, const MatrixView<float, GPU>& a,
     low.resizeNoCopy(high.size());
 
     dim3 blocks(ceilDiv(high.nrRows(), int(threads.x)), ceilDiv(high.nrCols(), int(threads.y)));
-    kernel::split<<<blocks, threads, 0, stream>>>(m, scale, high, low);
+
+    kernel::split<<<blocks, threads, 0, stream>>>(
+        m.nrRows(), m.nrCols(), high.nrRows(), high.nrCols(), m.ptr(), m.leadingDimension(), scale,
+        high.ptr(), low.ptr(), high.leadingDimension());
   };
 
   auto& a_high = (*workspace_)[0];
