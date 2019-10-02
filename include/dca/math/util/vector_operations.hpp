@@ -17,8 +17,10 @@
 #include <cmath>
 #include <complex>
 #include <iostream>
+#include <numeric>
 #include <type_traits>
 #include <vector>
+#include <tuple>
 
 #include "dca/linalg/lapack/solve.hpp"
 
@@ -267,9 +269,21 @@ auto operator+(const std::vector<T>& x, const std::vector<T>& y) {
 }
 template <typename T>
 auto operator-(const std::vector<T>& x, const std::vector<T>& y) {
-  return subtract(y, x); // Note: subtract(x, y) is defined as y - x;
+  return subtract(y, x);  // Note: subtract(x, y) is defined as y - x;
 }
 
+template <typename T>
+auto meanAndErr(const std::vector<T>& v) {
+  double sum = 0, sum2 = 0;
+  for (auto x : v) {
+    sum += x;
+    sum2 += x * x;
+  }
+
+  const double mean = sum / v.size();
+  const double var2 = sum2 / v.size() - mean * mean;
+  return std::make_tuple(mean, std::sqrt(var2 / v.size()));
+}
 
 }  // namespace util
 }  // namespace math

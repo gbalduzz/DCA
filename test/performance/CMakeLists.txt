@@ -1,3 +1,4 @@
+add_subdirectory(linalg)
 add_subdirectory(math/random)
 add_subdirectory(math/statistical_testing)
 add_subdirectory(phys/accumulation)
