@@ -20,6 +20,7 @@
 
 #include "dca/io/hdf5/hdf5_reader.hpp"
 #include "dca/io/json/json_reader.hpp"
+#include "dca/config/mc_options.hpp"
 #include "dca/math/random/std_random_wrapper.hpp"
 #include "dca/phys/dca_data/dca_data.hpp"
 #include "dca/phys/domains/cluster/symmetries/point_groups/2d/2d_square.hpp"
@@ -45,7 +46,8 @@ using Parameters = dca::phys::params::Parameters<Concurrency, Threading, Profile
                                                  dca::phys::solver::CT_AUX>;
 using Data = dca::phys::DcaData<Parameters>;
 template <dca::linalg::DeviceType device_t>
-using Walker = dca::phys::solver::ctaux::CtauxWalker<device_t, Parameters, Data>;
+using Walker =
+    dca::phys::solver::ctaux::CtauxWalker<device_t, Parameters, Data, dca::config::McOptions::MCScalar>;
 
 int main(int argc, char** argv) {
   bool test_cpu(true), test_gpu(true);
@@ -85,8 +87,8 @@ int main(int argc, char** argv) {
 
   auto do_sweeps = [n_sweeps, &parameters](auto& walker) {
     for (int i = 0; i < n_sweeps; ++i) {
-      walker.do_sweep();
-      walker.update_shell(i, n_sweeps);
+      walker.doSweep();
+      walker.updateShell(i, n_sweeps);
     }
   };
 
