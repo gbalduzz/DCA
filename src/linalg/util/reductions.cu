@@ -22,13 +22,15 @@ namespace kernels {
 // dca::linalg::util::kernels::
 
 template <class T>
-__device__ void inline reduceWarp(volatile T* sdata, const int tid) {
-  sdata[tid] = max(sdata[tid], sdata[tid + 32]);
-  sdata[tid] = max(sdata[tid], sdata[tid + 16]);
-  sdata[tid] = max(sdata[tid], sdata[tid + 8]);
-  sdata[tid] = max(sdata[tid], sdata[tid + 4]);
-  sdata[tid] = max(sdata[tid], sdata[tid + 2]);
-  sdata[tid] = max(sdata[tid], sdata[tid + 1]);
+__device__ T inline reduceWarp(T datum) {
+
+  datum = max(datum, __shfl_down_sync(0xffffffff, datum, 16));
+  datum = max(datum, __shfl_down_sync(0x0000ffff, datum, 8));
+  datum = max(datum, __shfl_down_sync(0x000000ff, datum, 4));
+  datum = max(datum, __shfl_down_sync(0x0000000f, datum, 2));
+  datum = max(datum, __shfl_down_sync(0x00000003, datum, 1));
+
+  return datum;
 }
 
 template <int block_size, class T>
@@ -53,10 +55,15 @@ __device__ void inline reduceShared(volatile T* sdata, const int tid) {
       sdata[tid] = max(sdata[tid], sdata[tid + 64]);
     __syncthreads();
   }
+  if (block_size >= 64) {
+    if (tid < 32)
+      sdata[tid] = max(sdata[tid], sdata[tid + 32]);
+    __syncthreads();
+  }
 
-  assert(block_size >= 64);
+  assert(block_size >= 32);
   if (tid < 32)
-    reduceWarp(sdata, tid);
+    sdata[tid] = reduceWarp(sdata[tid]);
 }
 
 // TODO: generalize with arbitrary operator.
