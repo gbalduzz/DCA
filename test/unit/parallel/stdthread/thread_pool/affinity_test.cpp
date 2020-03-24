@@ -23,16 +23,10 @@ TEST(AffinityTest, All) {
       std::cout << x << " ";
     std::cout << std::endl;
   };
-  auto equal = [](const auto& a, const auto& b) {
-    if (a.size() != b.size())
-      return false;
-    for (int i = 0; i < a.size(); ++i)
-      if (a[i] != b[i])
-        return false;
-    return true;
-  };
 
-  std::future<void> f = std::async(std::launch::async, [&]() {
+  auto f_count = std::async(std::launch::async, [&]() { return dca::parallel::get_core_count(); });
+
+  std::future<void> f_set = std::async(std::launch::async, [&]() {
     auto a = dca::parallel::get_affinity();
     std::cout << "Old affinity set: ";
     print(a);
@@ -40,12 +34,9 @@ TEST(AffinityTest, All) {
     dca::parallel::set_affinity(new_set);
 
     auto b = dca::parallel::get_affinity();
-    EXPECT_TRUE(equal(new_set, b));
+    EXPECT_EQ(new_set, b);
   });
 
-  f.get();
-}
-
- TEST(AffinityTest, Count) {
-  EXPECT_EQ(std::thread::hardware_concurrency(), dca::parallel::get_core_count());
+  EXPECT_EQ(std::thread::hardware_concurrency(), f_count.get());
+  f_set.get();
 }

@@ -11,12 +11,19 @@
 
 #include "dca/parallel/stdthread/thread_pool/affinity.hpp"
 
-#include <iostream>
-#include <cstdlib>
-
 // GNU extensions are required for linux-specific features for querying affinity
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
+#ifdef _WIN32
+#include <windows.h>
+#elif MACOS
+#include <sys/param.h>
+#include <sys/sysctl.h>
+#else
+// GNU extensions are required for linux-specific features for querying affinity
+#include <unistd.h>
 #endif
 
 #include <sched.h>
@@ -65,9 +72,30 @@ void set_affinity(const std::vector<int>& cores) {
 }
 
 int get_core_count() {
-  cpu_set_t cpu_set_mask;
-  sched_getaffinity(0, sizeof(cpu_set_t), &cpu_set_mask);
-  return CPU_COUNT(&cpu_set_mask);
+#ifdef WIN32
+  SYSTEM_INFO sysinfo;
+  GetSystemInfo(&sysinfo);
+  return sysinfo.dwNumberOfProcessors;
+#elif MACOS
+  int nm[2];
+  size_t len = 4;
+  uint32_t count;
+
+  nm[0] = CTL_HW;
+  nm[1] = HW_AVAILCPU;
+  sysctl(nm, 2, &count, &len, NULL, 0);
+
+  if (count < 1) {
+    nm[1] = HW_NCPU;
+    sysctl(nm, 2, &count, &len, NULL, 0);
+    if (count < 1) {
+      count = 1;
+    }
+  }
+  return count;
+#else
+  return sysconf(_SC_NPROCESSORS_ONLN);
+#endif
 }
 
 }  // namespace parallel
