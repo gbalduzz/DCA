@@ -242,7 +242,7 @@ Real CtintWalker<linalg::CPU, Parameters, Real>::removalProbability() {
   for(unsigned i = 0; i < n_removal_rngs_; ++i)
       removal_rngs[i] = rng_();
 
-  const auto candidates = configuration_.randomRemovalCandidateSlow(removal_rngs);
+  const auto candidates = configuration_.randomRemovalCandidate(removal_rngs);
   removal_list_.clear();
   for (int candidate : candidates) {
     if (candidate != -1)
